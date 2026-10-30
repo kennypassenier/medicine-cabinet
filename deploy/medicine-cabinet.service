@@ -1,4 +1,4 @@
-# medicinecabinet — the golden unit (AR17), as the homelab's answers shaped it.
+# medicine-cabinet — the golden unit (AR17), as the homelab's answers shaped it.
 #
 # StartLimitIntervalSec/Burst belong in [Unit]: in [Service] systemd
 # ignores them silently ("Unknown key") and a crash loop stops after five
@@ -8,17 +8,17 @@
 # the binary's directory too, or self-update verifies, downloads and then
 # fails at the swap.
 #
-# Install: install -D -m755 -o medicinecabinet -g medicinecabinet medicinecabinet /opt/medicinecabinet/bin/medicinecabinet
+# Install: install -D -m755 -o medicine-cabinet -g medicine-cabinet medicine-cabinet /opt/medicine-cabinet/bin/medicine-cabinet
 # (the service must own the binary itself, not only its directory: Linux
 # refuses a hard link to a file another user owns, so a root-owned binary
 # stops the self-update at the swap — fix-12, kyu on CT 109), copy
-# this file to /etc/systemd/system/medicinecabinet.service, create the user
-# (medicinecabinet), the state dir (/var/lib/medicinecabinet) and the env file
-# (/etc/medicinecabinet/medicinecabinet.env, 0640 root:medicinecabinet), then
-# systemctl enable --now medicinecabinet.
+# this file to /etc/systemd/system/medicine-cabinet.service, create the user
+# (medicine-cabinet), the state dir (/var/lib/medicine-cabinet) and the env file
+# (/etc/medicine-cabinet/medicine-cabinet.env, 0640 root:medicine-cabinet), then
+# systemctl enable --now medicine-cabinet.
 
 [Unit]
-Description=medicinecabinet — Medicines, schedules, stock and reminders
+Description=medicine-cabinet — Medicines, schedules, stock and reminders
 Wants=network-online.target
 After=network-online.target
 StartLimitIntervalSec=0
@@ -26,16 +26,16 @@ StartLimitBurst=0
 
 [Service]
 Type=notify
-User=medicinecabinet
-Group=medicinecabinet
-EnvironmentFile=/etc/medicinecabinet/medicinecabinet.env
-WorkingDirectory=/var/lib/medicinecabinet
-# feat-backup-1: /run/medicinecabinet/backup.sock, where `medicinecabinet backup-pause`
+User=medicine-cabinet
+Group=medicine-cabinet
+EnvironmentFile=/etc/medicine-cabinet/medicine-cabinet.env
+WorkingDirectory=/var/lib/medicine-cabinet
+# feat-backup-1: /run/medicine-cabinet/backup.sock, where `medicine-cabinet backup-pause`
 # reaches the running service; outside the state root, so never archived.
-RuntimeDirectory=medicinecabinet
+RuntimeDirectory=medicine-cabinet
 RuntimeDirectoryMode=0700
-ExecStartPre=/opt/medicinecabinet/bin/medicinecabinet --check
-ExecStart=/opt/medicinecabinet/bin/medicinecabinet
+ExecStartPre=/opt/medicine-cabinet/bin/medicine-cabinet --check
+ExecStart=/opt/medicine-cabinet/bin/medicine-cabinet
 Restart=always
 RestartSec=5s
 KillSignal=SIGTERM
@@ -46,8 +46,8 @@ TimeoutStopSec=60
 # Explicit, not the binary's compiled-in default (CF-6 d, 2026-09-06): the
 # unit says where the state lives, so a binary built with another default
 # still runs against this machine's measured directory.
-Environment=MEDICINECABINET_STATE_DIR=/var/lib/medicinecabinet
-Environment=MEDICINECABINET_TIMEOUT_STOP_SECS=60
+Environment=MEDICINE_CABINET_STATE_DIR=/var/lib/medicine-cabinet
+Environment=MEDICINE_CABINET_TIMEOUT_STOP_SECS=60
 NoNewPrivileges=yes
 PrivateTmp=yes
 ProtectSystem=strict
@@ -55,7 +55,7 @@ ProtectHome=yes
 ProtectKernelTunables=yes
 ProtectControlGroups=yes
 RestrictSUIDSGID=yes
-ReadWritePaths=/var/lib/medicinecabinet /var/lib/medicinecabinet-pre-update /opt/medicinecabinet/bin
+ReadWritePaths=/var/lib/medicine-cabinet /var/lib/medicine-cabinet-pre-update /opt/medicine-cabinet/bin
 # S2: the swap needs write access to the binary's OWN directory only; a
 # code-execution bug can then replace this service's binary, not latch or
 # its neighbours. The rest is systemd's free hardening for a network daemon.

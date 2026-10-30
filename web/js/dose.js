@@ -1,0 +1,56 @@
+// The as-needed flow, shared by Today and Find: ask the server whether a dose
+// is allowed, explain a refusal in plain words, offer an explicit override,
+// and offer Undo after the dose is logged.
+
+import { undoToast } from "/static/kp/js/undo-toast.js";
+import { api } from "./api.js";
+import { h } from "./dom.js";
+import { ask } from "./dialogs.js";
+import { duration } from "./clock.js";
+import { qty } from "./format.js";
+import { reportError } from "./ui.js";
+
+/** The dose logged for an as-needed medicine: the schedule has no slot to say, so one unit. */
+export const AS_NEEDED_DOSE = 1;
+
+/** The sentence under "Too soon", from the guard's own reason and wait. @param {any} med @param {any} check */
+function refusal(med, check) {
+  const wait = check.wait_minutes ? `Safe again in ${duration(check.wait_minutes)}.` : "";
+  return h("div", null,
+    h("p", null, check.reason ?? `The limit for ${med.name} has been reached.`),
+    wait ? h("p", null, h("strong", null, wait)) : null,
+    h("p", null, "Taking it anyway is your decision; it will be logged like any other dose."));
+}
+
+/** Log one dose and offer Undo. @param {any} med @param {() => void} onChange */
+async function log(med, onChange) {
+  const { id } = await api.logIntake({ medicineId: med.id, status: "taken", dose: AS_NEEDED_DOSE });
+  onChange();
+  undoToast(`Logged 1 dose of ${med.name}. ${qty(Math.max(0, med.stock - AS_NEEDED_DOSE), med.stock_unit)} left.`, {
+    mode: "revert",
+    ms: 8000,
+    undo: async () => {
+      await api.undoIntake(id);
+      onChange();
+    },
+  });
+}
+
+/**
+ * "I took one" for an as-needed medicine.
+ * @param {any} med the medicine
+ * @param {() => void} onChange called after the log changes (refresh the screen)
+ * @returns {Promise<void>}
+ */
+export async function takeOne(med, onChange) {
+  try {
+    const check = await api.doseCheck(med.id);
+    if (!check.allowed) {
+      const yes = await ask({ title: `Too soon for ${med.name}`, text: refusal(med, check), accept: "Take anyway", cancel: "Not now" });
+      if (!yes) return;
+    }
+    await log(med, onChange);
+  } catch (e) {
+    reportError(`Could not log ${med.name}.`, e);
+  }
+}

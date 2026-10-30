@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to medicinecabinet. Semantic versioning: a breaking change
+All notable changes to medicine-cabinet. Semantic versioning: a breaking change
 in the API, the configuration knobs or the on-disk state is a major, and
 carries a **Migration** section saying what an operator must do.
 

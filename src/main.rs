@@ -1,4 +1,4 @@
-//! medicinecabinet — Medicines, schedules, stock and reminders
+//! medicine-cabinet — Medicines, schedules, stock and reminders
 //!
 //! Built on chassis: configuration, logging, health, graceful shutdown, the
 //! admin login, the app database and the kp-themes assets come from the
@@ -29,9 +29,9 @@ fn fail(e: impl std::fmt::Display) -> std::process::ExitCode {
 #[tokio::main]
 async fn main() -> std::process::ExitCode {
     let spec = AppSpec {
-        name: "medicinecabinet",
+        name: "medicine-cabinet",
         version: env!("CARGO_PKG_VERSION"),
-        repository: Some("kennypassenier/medicinecabinet"),
+        repository: Some("kennypassenier/medicine-cabinet"),
         ..Default::default()
     };
     let mut app = match App::from_env_and_args(spec, Router::new()) {

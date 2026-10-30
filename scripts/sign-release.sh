@@ -14,7 +14,7 @@
 set -euo pipefail
 
 tag="${1:?usage: sign-release.sh vX.Y.Z}"
-repo="${REPO:-kennypassenier/medicinecabinet}"
+repo="${REPO:-kennypassenier/medicine-cabinet}"
 key="${MINISIGN_KEY:-$HOME/.minisign/minisign.key}"
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT

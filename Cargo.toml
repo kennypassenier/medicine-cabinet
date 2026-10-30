@@ -1,12 +1,12 @@
 [package]
-name = "medicinecabinet"
+name = "medicine-cabinet"
 version = "0.1.0"
 description = "Medicines, schedules, stock and reminders"
 edition = "2024"
 # Pinned together with rust-toolchain.toml (standing rule 7).
 rust-version = "1.97"
 license = "MIT OR Apache-2.0"
-repository = "https://github.com/kennypassenier/medicinecabinet"
+repository = "https://github.com/kennypassenier/medicine-cabinet"
 publish = false
 
 [dependencies]

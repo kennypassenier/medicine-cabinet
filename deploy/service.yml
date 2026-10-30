@@ -12,20 +12,20 @@
 # the binary's compiled-in default instead of this machine's directory, and
 # fails with a message that blames a missing secret. Add a line here for
 # every Environment= line added to the unit.
-stack_name: medicinecabinet
+stack_name: medicine-cabinet
 vmid: 0
-hostname: 0-app-medicinecabinet
-unit: medicinecabinet
-binary: /opt/medicinecabinet/bin/medicinecabinet
-env_file: /etc/medicinecabinet/medicinecabinet.env
+hostname: 0-app-medicine-cabinet
+unit: medicine-cabinet
+binary: /opt/medicine-cabinet/bin/medicine-cabinet
+env_file: /etc/medicine-cabinet/medicine-cabinet.env
 data_dirs:
-  - /var/lib/medicinecabinet
+  - /var/lib/medicine-cabinet
 update_cmd: >-
-  systemd-run --wait --pipe --collect --uid=medicinecabinet --gid=medicinecabinet
-  --property=EnvironmentFile=/etc/medicinecabinet/medicinecabinet.env
-  --property=WorkingDirectory=/var/lib/medicinecabinet
-  --property=Environment=MEDICINECABINET_STATE_DIR=/var/lib/medicinecabinet
-  --property=Environment=MEDICINECABINET_TIMEOUT_STOP_SECS=60
-  /opt/medicinecabinet/bin/medicinecabinet update
-release_repo: kennypassenier/medicinecabinet
-release_asset: medicinecabinet
+  systemd-run --wait --pipe --collect --uid=medicine-cabinet --gid=medicine-cabinet
+  --property=EnvironmentFile=/etc/medicine-cabinet/medicine-cabinet.env
+  --property=WorkingDirectory=/var/lib/medicine-cabinet
+  --property=Environment=MEDICINE_CABINET_STATE_DIR=/var/lib/medicine-cabinet
+  --property=Environment=MEDICINE_CABINET_TIMEOUT_STOP_SECS=60
+  /opt/medicine-cabinet/bin/medicine-cabinet update
+release_repo: kennypassenier/medicine-cabinet
+release_asset: medicine-cabinet

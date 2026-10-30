@@ -23,12 +23,12 @@ RUN mkdir -p /state
 # 65532, so neither the apt line nor a useradd is needed; a static binary
 # needs nothing else from the image.
 FROM gcr.io/distroless/static:nonroot
-COPY --from=build /src/target/x86_64-unknown-linux-musl/release/medicinecabinet /usr/local/bin/medicinecabinet
-COPY --from=build --chown=65532:65532 /state /var/lib/medicinecabinet
+COPY --from=build /src/target/x86_64-unknown-linux-musl/release/medicine-cabinet /usr/local/bin/medicine-cabinet
+COPY --from=build --chown=65532:65532 /state /var/lib/medicine-cabinet
 USER 65532:65532
-ENV MEDICINECABINET_LISTEN=0.0.0.0:8080 MEDICINECABINET_STATE_DIR=/var/lib/medicinecabinet
+ENV MEDICINE_CABINET_LISTEN=0.0.0.0:8080 MEDICINE_CABINET_STATE_DIR=/var/lib/medicine-cabinet
 EXPOSE 8080
-VOLUME ["/var/lib/medicinecabinet"]
+VOLUME ["/var/lib/medicine-cabinet"]
 # Self-update is off inside an image by detection (AR8); updates are a new image.
-HEALTHCHECK --interval=30s --timeout=5s --retries=3 CMD ["/usr/local/bin/medicinecabinet", "--healthcheck"]
-ENTRYPOINT ["/usr/local/bin/medicinecabinet"]
+HEALTHCHECK --interval=30s --timeout=5s --retries=3 CMD ["/usr/local/bin/medicine-cabinet", "--healthcheck"]
+ENTRYPOINT ["/usr/local/bin/medicine-cabinet"]

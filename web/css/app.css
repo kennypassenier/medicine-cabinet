@@ -1,0 +1,162 @@
+/* Layout glue only: grids that place kp-themes parts. Every colour, size and
+   border comes from the package's tokens and components. */
+
+:root {
+  --mc-section-gap: calc(var(--kp-section-gap, 2rem) * 1.25);
+  --mc-wide: 52rem; /* the one step between phone/tablet and desktop compositions */
+}
+
+.mc-shell {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-content: start;
+  gap: var(--mc-section-gap);
+  inline-size: min(100% - 2 * var(--kp-space-4, 1rem), 76rem);
+  margin-inline: auto;
+  padding-block: var(--kp-space-6, 1.5rem) var(--kp-space-10, 3rem);
+}
+.mc-shell:focus { outline: none; }
+
+.mc-tools { display: inline-grid; grid-auto-flow: column; align-items: center; margin-inline-start: auto; }
+.mc-plate { display: grid; min-block-size: 20rem; place-items: center; text-align: center; }
+
+/* ---- Today ---------------------------------------------------------- */
+.mc-today { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--kp-space-5, 1.25rem); align-items: stretch; }
+.mc-today__first { display: grid; min-block-size: 22rem; place-items: center; }
+
+@media (min-width: 52rem) {
+  .mc-today { grid-template-columns: repeat(12, minmax(0, 1fr)); }
+  .mc-today__attention { grid-column: 1 / -1; }
+  .mc-today__schedule { grid-column: 1 / span 8; grid-row: 2 / span 2; }
+  .mc-today__next { grid-column: 9 / span 4; grid-row: 2; }
+  .mc-today__asneeded { grid-column: 9 / span 4; grid-row: 3; }
+}
+
+/* ---- Next dose hero --------------------------------------------------- */
+.mc-next { display: grid; gap: var(--kp-space-2, 0.5rem); align-content: center; min-block-size: 11rem; }
+.mc-next p { margin: 0; }
+.mc-next__title { font-size: var(--kp-text-2xl, 1.5rem); font-weight: 700; line-height: 1.15; overflow-wrap: anywhere; }
+.mc-next__dose { font-size: var(--kp-text-lg, 1.125rem); }
+.mc-next__meta { color: var(--muted-foreground); }
+.mc-next__actions { display: grid; grid-template-columns: 2fr 1fr; gap: var(--kp-space-3, 0.75rem); margin-block-start: var(--kp-space-3, 0.75rem); }
+
+/* ---- Schedule --------------------------------------------------------- */
+.mc-slot { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--kp-space-2, 0.5rem); padding-block: var(--kp-space-3, 0.75rem); border-block-start: 1px solid var(--border); }
+.mc-slot:first-child { border-block-start: 0; padding-block-start: 0; }
+.mc-slot__time { margin: 0; font-size: var(--kp-text-lg, 1.125rem); font-variant-numeric: tabular-nums; }
+.mc-slot__list, .mc-list { display: grid; gap: var(--kp-space-3, 0.75rem); margin: 0; padding: 0; list-style: none; }
+.mc-dose { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "main state" "actions actions"; gap: var(--kp-space-2, 0.5rem) var(--kp-space-3, 0.75rem); align-items: center; }
+.mc-dose__main { grid-area: main; display: grid; min-inline-size: 0; }
+.mc-dose__state { grid-area: state; }
+.mc-dose__actions { grid-area: actions; display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: var(--kp-space-2, 0.5rem); }
+.mc-dose__actions--one { grid-template-columns: 1fr; }
+.mc-dose__name, .mc-need__name { font-weight: 600; overflow-wrap: anywhere; }
+.mc-dose__meta, .mc-need__meta { color: var(--muted-foreground); font-size: var(--kp-text-sm, 0.875rem); }
+
+@media (min-width: 52rem) {
+  .mc-slot { grid-template-columns: 4.5rem minmax(0, 1fr); align-items: start; }
+  .mc-dose { grid-template-columns: minmax(0, 1fr) 12rem 14.5rem; grid-template-areas: "main state actions"; }
+  .mc-dose__state { justify-self: start; }
+}
+
+/* ---- When needed ------------------------------------------------------- */
+.mc-need { display: grid; grid-template-columns: minmax(0, 1fr) 8rem; grid-template-areas: "main btn" "badges badges"; gap: var(--kp-space-3, 0.75rem); align-items: center; }
+.mc-need > .kp-button { grid-area: btn; }
+.mc-need__main { grid-area: main; display: grid; gap: var(--kp-space-1, 0.25rem); min-inline-size: 0; }
+.mc-need__badges { grid-area: badges; display: grid; grid-auto-flow: column; justify-content: start; gap: var(--kp-space-1, 0.25rem); }
+.mc-need__badges:empty { display: none; }
+
+.mc-need + .mc-need { padding-block-start: var(--kp-space-3, 0.75rem); border-block-start: 1px solid var(--border); }
+.mc-next__state { display: grid; justify-items: start; }
+
+/* The attention band: one column on a phone, a grid of equal tiles on desktop; "show more" below. */
+.mc-today__attention { display: grid; gap: var(--kp-space-2, 0.5rem); }
+.mc-today__attention:not(:has(.kp-attention__item)) { display: none; }
+.mc-attention__more { justify-self: start; }
+@media (min-width: 52rem) {
+  .mc-today__attention .kp-attention { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--kp-space-3, 0.75rem); }
+}
+.mc-attention__more[hidden] { display: none; }
+
+/* ---- Cabinet ----------------------------------------------------------- */
+.mc-toolbar { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--kp-space-3, 0.75rem); align-items: end; }
+.mc-filters { min-inline-size: 0; }
+.mc-filters .kp-segmented { max-inline-size: 100%; }
+@media (min-width: 52rem) { .mc-toolbar { grid-template-columns: minmax(16rem, 1fr) minmax(0, 2fr); } }
+
+.mc-list--rows { gap: 0; }
+.mc-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "main switch" "when when" "stock stock"; gap: var(--kp-space-2, 0.5rem) var(--kp-space-4, 1rem); align-items: center; padding-block: var(--kp-space-4, 1rem); }
+.mc-row + .mc-row { border-block-start: 1px solid var(--border); }
+.mc-row[data-off="true"] .mc-row__main, .mc-row[data-off="true"] .mc-row__when { opacity: 0.65; }
+.mc-row__main { grid-area: main; display: grid; gap: var(--kp-space-1, 0.25rem); min-inline-size: 0; }
+.mc-row__name { font-size: var(--kp-text-lg, 1.125rem); font-weight: 600; overflow-wrap: anywhere; }
+.mc-row__facts, .mc-row__schedule { color: var(--muted-foreground); font-size: var(--kp-text-sm, 0.875rem); }
+.mc-row__symptoms { margin: 0; padding: 0; list-style: none; }
+.mc-row__when { grid-area: when; display: grid; gap: var(--kp-space-1, 0.25rem); min-inline-size: 0; }
+.mc-row__badges { display: grid; grid-auto-flow: column; justify-content: start; gap: var(--kp-space-1, 0.25rem); }
+.mc-row__badges:empty { display: none; }
+.mc-row__stock { grid-area: stock; }
+.mc-row__switch { grid-area: switch; justify-self: end; align-self: start; }
+@media (min-width: 52rem) {
+  .mc-row { grid-template-columns: minmax(0, 2.2fr) minmax(0, 1.4fr) 16rem 7.5rem; grid-template-areas: "main when stock switch"; }
+}
+.mc-row__stock .kp-quantity { inline-size: 100%; max-inline-size: none; }
+
+/* ---- Medicine form ----------------------------------------------------- */
+.mc-form { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--kp-space-5, 1.25rem); align-items: stretch; }
+.mc-form > .kp-form__summary, .mc-form__bar { grid-column: 1 / -1; }
+.mc-form__bar { display: grid; grid-template-columns: 1fr 2fr; gap: var(--kp-space-3, 0.75rem); }
+.mc-form__when, .mc-form__when > .kp-card { display: grid; }
+.mc-form .kp-card, .mc-form__danger { align-content: start; }
+html .kp-formgrid.kp-formgrid { --kp-formgrid-max: none; inline-size: 100%; }
+@media (min-width: 52rem) {
+  .mc-form { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .mc-form__bar { grid-template-columns: 12rem 16rem; justify-content: end; }
+}
+.mc-form__danger { max-inline-size: 100%; }
+
+.mc-slotedit-wrap { display: grid; gap: var(--kp-space-3, 0.75rem); }
+.mc-slotedit-list { display: grid; gap: var(--kp-space-4, 1rem); margin: 0; padding: 0; list-style: none; }
+.mc-slotedit { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "time remove" "dose dose" "days days"; gap: var(--kp-space-2, 0.5rem) var(--kp-space-3, 0.75rem); align-items: center; padding-block-end: var(--kp-space-3, 0.75rem); border-block-end: 1px solid var(--border); }
+.mc-slotedit__time { grid-area: time; }
+.mc-slotedit__dose { grid-area: dose; }
+.mc-slotedit > .kp-button { grid-area: remove; }
+.mc-slotedit__days { grid-area: days; }
+.mc-dialog-field { display: grid; gap: var(--kp-space-2, 0.5rem); margin-block: var(--kp-space-3, 0.75rem); }
+html .mc-shell :is(.kp-field__input, .kp-combobox__input, .kp-time input) { text-align: start; text-align-last: start; }
+
+/* ---- Find -------------------------------------------------------------- */
+.mc-find__box { display: grid; gap: var(--kp-space-3, 0.75rem); }
+.mc-find__input { font-size: var(--kp-text-xl, 1.25rem); min-block-size: 3.5rem; }
+.mc-find { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--kp-space-5, 1.25rem); align-items: stretch; }
+@media (min-width: 52rem) {
+  .mc-find { grid-template-columns: repeat(12, minmax(0, 1fr)); }
+  .mc-find__have { grid-column: 1 / span 7; }
+  .mc-find__lack { grid-column: 8 / span 5; }
+}
+.mc-result { display: grid; grid-template-columns: minmax(0, 1fr) 8rem; grid-template-areas: "main action" "badges badges"; gap: var(--kp-space-2, 0.5rem) var(--kp-space-3, 0.75rem); align-items: center; }
+.mc-result + .mc-result { padding-block-start: var(--kp-space-3, 0.75rem); border-block-start: 1px solid var(--border); }
+.mc-result > .kp-button, .mc-result__scheduled { grid-area: action; }
+.mc-result__scheduled { justify-self: center; color: var(--muted-foreground); font-size: var(--kp-text-sm, 0.875rem); }
+.mc-result__main { grid-area: main; display: grid; gap: var(--kp-space-1, 0.25rem); min-inline-size: 0; }
+.mc-result .mc-need__badges { grid-area: badges; }
+.mc-result .mc-need__badges:empty { display: none; }
+.mc-find__lack .mc-result { grid-template-columns: minmax(0, 1fr) auto; }
+
+/* ---- History ----------------------------------------------------------- */
+.mc-slot__time--day { display: grid; grid-auto-flow: row; gap: var(--kp-space-1, 0.25rem); font-size: var(--kp-text-base, 1rem); }
+.mc-slot__count { color: var(--muted-foreground); font-size: var(--kp-text-sm, 0.875rem); font-weight: 400; }
+.mc-hist { display: grid; grid-template-columns: 3.5rem minmax(0, 1fr) auto; grid-template-areas: "time main state" "undo undo undo"; gap: var(--kp-space-2, 0.5rem) var(--kp-space-3, 0.75rem); align-items: center; }
+.mc-hist__time { grid-area: time; font-variant-numeric: tabular-nums; font-weight: 600; }
+.mc-hist__main { grid-area: main; display: grid; min-inline-size: 0; }
+.mc-hist__state { grid-area: state; }
+.mc-hist > .kp-button { grid-area: undo; }
+@media (min-width: 52rem) {
+  .mc-slot:has(.mc-hist) { grid-template-columns: 9rem minmax(0, 1fr); }
+  .mc-hist { grid-template-columns: 3.5rem minmax(0, 1fr) 7rem 7rem; grid-template-areas: "time main state undo"; }
+}
+
+.mc-dialog { inline-size: min(26rem, 100vw - 2rem); }
+.mc-result { padding-block-end: var(--kp-space-1, 0.25rem); }
+.mc-slotedit__time, .mc-slotedit__dose { display: grid; gap: var(--kp-space-1, 0.25rem); }
+.mc-slotedit > .kp-button { align-self: end; }
