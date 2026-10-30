@@ -85,6 +85,24 @@ UPDATE medicines SET form_id = (SELECT id FROM medicine_forms WHERE name = medic
     WHERE form <> '';
 ";
 
+/// Which reminders were already sent, so a restart never repeats one.
+/// `planned_for` is the slot (`YYYY-MM-DDTHH:MM`) or, for the daily
+/// attention digest, the date.
+const V4: &str = "
+CREATE TABLE reminder_log (
+    medicine_id INTEGER NOT NULL REFERENCES medicines(id) ON DELETE CASCADE,
+    planned_for TEXT NOT NULL,
+    kind        TEXT NOT NULL,
+    sent_at     TEXT NOT NULL DEFAULT (datetime('now')),
+    PRIMARY KEY (medicine_id, planned_for, kind)
+);
+";
+
 pub fn migrations() -> Vec<Migration> {
-    vec![Migration::sql(V1), Migration::sql(V2), Migration::sql(V3)]
+    vec![
+        Migration::sql(V1),
+        Migration::sql(V2),
+        Migration::sql(V3),
+        Migration::sql(V4),
+    ]
 }

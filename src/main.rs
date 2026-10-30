@@ -8,7 +8,11 @@
 #![forbid(unsafe_code)]
 
 mod api;
+mod attention;
+mod config;
+mod dayplan;
 mod domain;
+mod reminders;
 mod schema;
 #[cfg(debug_assertions)]
 mod seed;
@@ -49,12 +53,17 @@ async fn main() -> std::process::ExitCode {
         Ok(app) => app,
         Err(e) => return fail(e),
     };
+    let reminder_config = match config::ReminderConfig::from_env() {
+        Ok(c) => c,
+        Err(e) => return fail(e),
+    };
     let db = match app.app_db(AppDbSpec::new(schema::migrations())) {
         Ok(db) => db,
         Err(e) => return fail(e),
     };
     #[cfg(debug_assertions)]
     seed::spawn(db.clone());
+    reminders::spawn(db.clone(), app.notifier(), reminder_config);
     app.dashboard_routes(api::router(db));
     app.webapp(WebApp::embedded(embedded::FILES));
     app.brand_title("Medicine cabinet");

@@ -4,6 +4,7 @@ pub mod categories;
 pub mod forms;
 pub mod intakes;
 pub mod medicines;
+pub mod reminder_log;
 pub mod slots;
 pub mod symptoms;
 
