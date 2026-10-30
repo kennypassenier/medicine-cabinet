@@ -18,10 +18,11 @@ publish = false
 # builds against glibc instead — add the feature here and take the musl
 # target back out of rust-toolchain.toml, the Dockerfile and `chassis release`,
 # knowing the binary then only runs on hosts with the builder's glibc.
-chassis = { git = "https://github.com/kennypassenier/chassis-rs", tag = "v3.14.0", version = "3.14.0", features = ["storage", "dashboard", "self-update", "notify"] }
-axum = { version = "0.8", default-features = false, features = ["http1", "tokio", "json", "matched-path"] }
+chassis = { git = "https://github.com/kennypassenier/chassis-rs", tag = "v3.14.0", version = "3.14.0", features = ["storage", "dashboard", "webapp", "self-update", "notify"] }
+axum = { version = "0.8", default-features = false, features = ["http1", "tokio", "json", "matched-path", "query"] }
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "signal"] }
 serde_json = "1"
+serde = { version = "1", features = ["derive"] }
 
 [dev-dependencies]
 # K34: the same kit again, with its test harness (`chassis::testing`) for

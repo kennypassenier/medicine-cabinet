@@ -1,24 +1,29 @@
 //! medicinecabinet — Medicines, schedules, stock and reminders
 //!
-//! Built on chassis: configuration, logging, health, metrics, graceful
-//! shutdown, the dashboard with client tokens, signed self-update and
-//! webhooks all come from the kit. This file holds only what medicinecabinet
-//! does itself. Start with `cargo run -- --help`.
+//! Built on chassis: configuration, logging, health, graceful shutdown, the
+//! admin login, the app database and the kp-themes assets come from the
+//! kit. This file only wires the pieces together; the logic lives in
+//! `domain` (pure rules), `store` (SQL) and `api` (JSON for the browser app).
 
 #![forbid(unsafe_code)]
 
-use axum::routing::post;
-use axum::{Json, Router};
-use chassis::{App, AppSpec, Caller};
+mod api;
+mod domain;
+mod schema;
+mod store;
 
-/// An example API route: anything a client posts with its token is
-/// accepted and answered with who sent it. Replace with the real work.
-async fn receive(caller: Caller, Json(body): Json<serde_json::Value>) -> Json<serde_json::Value> {
-    let from = match caller {
-        Caller::Client { name, .. } => name,
-        Caller::Admin => "admin".to_string(),
-    };
-    Json(serde_json::json!({ "from": from, "received": body }))
+use axum::Router;
+use chassis::shell::webapp::WebApp;
+use chassis::storage::AppDbSpec;
+use chassis::{App, AppSpec};
+
+mod embedded {
+    include!(concat!(env!("OUT_DIR"), "/web_files.rs"));
+}
+
+fn fail(e: impl std::fmt::Display) -> std::process::ExitCode {
+    eprintln!("{e}");
+    std::process::ExitCode::FAILURE
 }
 
 #[tokio::main]
@@ -31,17 +36,14 @@ async fn main() -> std::process::ExitCode {
     };
     let mut app = match App::from_env_and_args(spec, Router::new()) {
         Ok(app) => app,
-        Err(e) => {
-            eprintln!("{e}");
-            return std::process::ExitCode::FAILURE;
-        }
+        Err(e) => return fail(e),
     };
-    app.api_routes(Router::new().route("/v1/example", post(receive)));
-    app.test_route(
-        "POST",
-        "/v1/example",
-        "application/json",
-        r#"{"hello":"world"}"#,
-    );
+    let db = match app.app_db(AppDbSpec::new(schema::migrations())) {
+        Ok(db) => db,
+        Err(e) => return fail(e),
+    };
+    app.dashboard_routes(api::router(db));
+    app.webapp(WebApp::embedded(embedded::FILES));
+    app.brand_title("Medicine cabinet");
     app.run().await
 }
