@@ -1,5 +1,7 @@
 //! Persistence: SQL lives here and nowhere else.
 
+pub mod categories;
+pub mod forms;
 pub mod intakes;
 pub mod medicines;
 pub mod slots;

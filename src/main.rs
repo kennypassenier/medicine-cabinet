@@ -10,6 +10,8 @@
 mod api;
 mod domain;
 mod schema;
+#[cfg(debug_assertions)]
+mod seed;
 mod store;
 
 use axum::Router;
@@ -26,7 +28,7 @@ mod embedded {
 const PAGES: [(&str, &str, &str); 4] = [
     ("today", "Today", "/"),
     ("cabinet", "Cabinet", "/cabinet"),
-    ("find", "Find", "/find"),
+    ("symptoms", "Symptoms", "/symptoms"),
     ("history", "History", "/history"),
 ];
 
@@ -51,6 +53,8 @@ async fn main() -> std::process::ExitCode {
         Ok(db) => db,
         Err(e) => return fail(e),
     };
+    #[cfg(debug_assertions)]
+    seed::spawn(db.clone());
     app.dashboard_routes(api::router(db));
     app.webapp(WebApp::embedded(embedded::FILES));
     app.brand_title("Medicine cabinet");

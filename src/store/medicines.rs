@@ -18,6 +18,7 @@ pub struct Medicine {
     pub name: String,
     pub purpose: String,
     pub form: String,
+    pub form_id: Option<i64>,
     pub strength: String,
     pub notes: String,
     pub active: bool,
@@ -41,9 +42,10 @@ pub struct Medicine {
     pub course_over: bool,
 }
 
-const COLUMNS: &str = "id, name, purpose, form, strength, notes, active, as_needed,
+const COLUMNS: &str = "id, name, purpose,
+    COALESCE((SELECT name FROM medicine_forms f WHERE f.id = medicines.form_id), ''), strength, notes, active, as_needed,
     min_gap_minutes, max_per_day, stock, stock_unit, low_stock_at,
-    expires_on, opened_on, shelf_life_days, course_ends_on";
+    expires_on, opened_on, shelf_life_days, course_ends_on, form_id";
 
 fn read_row(r: &Row, today: Date) -> Result<Medicine, chassis::storage::rusqlite::Error> {
     let expires_on: Option<String> = r.get(13)?;
@@ -62,6 +64,7 @@ fn read_row(r: &Row, today: Date) -> Result<Medicine, chassis::storage::rusqlite
         name: r.get(1)?,
         purpose: r.get(2)?,
         form: r.get(3)?,
+        form_id: r.get(17)?,
         strength: r.get(4)?,
         notes: r.get(5)?,
         active: r.get::<_, i64>(6)? != 0,
@@ -115,14 +118,14 @@ pub fn get(conn: &Connection, id: i64, today: Date) -> Result<Medicine, Error> {
 
 pub fn insert(tx: &Transaction, m: &MedicineInput) -> Result<i64, Error> {
     tx.execute(
-        "INSERT INTO medicines (name, purpose, form, strength, notes, active, as_needed,
+        "INSERT INTO medicines (name, purpose, form_id, strength, notes, active, as_needed,
             min_gap_minutes, max_per_day, stock, stock_unit, low_stock_at,
             expires_on, opened_on, shelf_life_days, course_ends_on)
          VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16)",
         params![
             m.name,
             m.purpose,
-            m.form,
+            m.form_id,
             m.strength,
             m.notes,
             m.active,
@@ -147,7 +150,7 @@ pub fn insert(tx: &Transaction, m: &MedicineInput) -> Result<i64, Error> {
 pub fn update(tx: &Transaction, id: i64, m: &MedicineInput) -> Result<(), Error> {
     let changed = tx
         .execute(
-            "UPDATE medicines SET name=?2, purpose=?3, form=?4, strength=?5, notes=?6,
+            "UPDATE medicines SET name=?2, purpose=?3, form_id=?4, strength=?5, notes=?6,
                 active=?7, as_needed=?8, min_gap_minutes=?9, max_per_day=?10, stock=?11,
                 stock_unit=?12, low_stock_at=?13, expires_on=?14, opened_on=?15,
                 shelf_life_days=?16, course_ends_on=?17 WHERE id=?1",
@@ -155,7 +158,7 @@ pub fn update(tx: &Transaction, id: i64, m: &MedicineInput) -> Result<(), Error>
                 id,
                 m.name,
                 m.purpose,
-                m.form,
+                m.form_id,
                 m.strength,
                 m.notes,
                 m.active,

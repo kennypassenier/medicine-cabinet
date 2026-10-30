@@ -8,7 +8,6 @@ use serde::{Deserialize, Serialize};
 use super::{ApiResult, Clock};
 use crate::domain::medicine::{Freshness, StockLevel};
 use crate::store::medicines::{self, Medicine};
-use crate::store::symptoms;
 
 #[derive(Debug, Deserialize)]
 pub struct SearchQuery {
@@ -50,19 +49,4 @@ pub async fn by_symptom(
         usable,
         unavailable,
     }))
-}
-
-#[derive(Debug, Serialize)]
-pub struct SymptomCount {
-    name: String,
-    medicines: i64,
-}
-
-pub async fn symptoms(State(db): State<AppDb>) -> ApiResult<Vec<SymptomCount>> {
-    let rows = db.read(symptoms::all_with_counts).await?;
-    Ok(Json(
-        rows.into_iter()
-            .map(|(name, medicines)| SymptomCount { name, medicines })
-            .collect(),
-    ))
 }

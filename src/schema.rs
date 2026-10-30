@@ -53,6 +53,38 @@ CREATE INDEX intakes_by_medicine ON intakes (medicine_id, taken_at);
 CREATE INDEX slots_by_medicine ON schedule_slots (medicine_id);
 ";
 
+/// Symptoms become first-class: they get optional categories and are no
+/// longer deleted when the last medicine stops using them.
+const V2: &str = "
+CREATE TABLE symptom_categories (
+    id    INTEGER PRIMARY KEY,
+    name  TEXT NOT NULL UNIQUE COLLATE NOCASE
+);
+ALTER TABLE symptoms ADD COLUMN category_id INTEGER
+    REFERENCES symptom_categories(id) ON DELETE SET NULL;
+";
+
+/// Medicine forms (tablet, syrup, ...) become a managed list with the unit
+/// stock is counted in. The old free-text `medicines.form` column is kept
+/// (SQLite cannot drop it cheaply) but no longer read; its values are
+/// carried over into the new list.
+const V3: &str = "
+CREATE TABLE medicine_forms (
+    id    INTEGER PRIMARY KEY,
+    name  TEXT NOT NULL UNIQUE COLLATE NOCASE,
+    unit  TEXT NOT NULL DEFAULT ''
+);
+INSERT INTO medicine_forms (name, unit) VALUES
+    ('Tablet', 'tablets'), ('Capsule', 'capsules'), ('Syrup', 'ml'),
+    ('Drops', 'drops'), ('Cream', 'g'), ('Spray', 'doses'),
+    ('Inhaler', 'puffs'), ('Patch', 'patches'), ('Injection', 'doses');
+INSERT OR IGNORE INTO medicine_forms (name) SELECT DISTINCT form FROM medicines WHERE form <> '';
+ALTER TABLE medicines ADD COLUMN form_id INTEGER
+    REFERENCES medicine_forms(id) ON DELETE SET NULL;
+UPDATE medicines SET form_id = (SELECT id FROM medicine_forms WHERE name = medicines.form)
+    WHERE form <> '';
+";
+
 pub fn migrations() -> Vec<Migration> {
-    vec![Migration::sql(V1)]
+    vec![Migration::sql(V1), Migration::sql(V2), Migration::sql(V3)]
 }

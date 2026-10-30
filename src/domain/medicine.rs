@@ -11,8 +11,8 @@ pub struct MedicineInput {
     pub name: String,
     #[serde(default)]
     pub purpose: String,
-    #[serde(default)]
-    pub form: String,
+    /// One of the managed forms (tablet, syrup, ...).
+    pub form_id: Option<i64>,
     #[serde(default)]
     pub strength: String,
     #[serde(default)]
