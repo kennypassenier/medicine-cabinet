@@ -1,0 +1,11 @@
+# Written by `chassis new`; read by `chassis sync` and `chassis release`.
+name = "medicinecabinet"
+description = "Medicines, schedules, stock and reminders"
+repo = "kennypassenier/medicinecabinet"
+toolchain = "1.97"
+chassis_tag = "v3.14.0"
+chassis_repo = "https://github.com/kennypassenier/chassis-rs"
+kp_themes = "11.3.0"
+state_dir = "/var/lib/medicinecabinet"
+latch = false
+vmid = 0

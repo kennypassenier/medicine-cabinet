@@ -1,0 +1,37 @@
+[package]
+name = "medicinecabinet"
+version = "0.1.0"
+description = "Medicines, schedules, stock and reminders"
+edition = "2024"
+# Pinned together with rust-toolchain.toml (standing rule 7).
+rust-version = "1.97"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/kennypassenier/medicinecabinet"
+publish = false
+
+[dependencies]
+# The kit, pinned to a tag: a new kit version is a deliberate bump here,
+# a build and a release (SCOPE N3). Features: drop what this service does
+# not need. `passkeys` is deliberately absent (feat-build-1): it pulls
+# OpenSSL, which the static musl release build would have to vendor and
+# compile for musl on every release. A service that really needs passkeys
+# builds against glibc instead — add the feature here and take the musl
+# target back out of rust-toolchain.toml, the Dockerfile and `chassis release`,
+# knowing the binary then only runs on hosts with the builder's glibc.
+chassis = { git = "https://github.com/kennypassenier/chassis-rs", tag = "v3.14.0", version = "3.14.0", features = ["storage", "dashboard", "self-update", "notify"] }
+axum = { version = "0.8", default-features = false, features = ["http1", "tokio", "json", "matched-path"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "signal"] }
+serde_json = "1"
+
+[dev-dependencies]
+# K34: the same kit again, with its test harness (`chassis::testing`) for
+# tests/kit_smoke.rs. Cargo unifies the two entries, so this one only adds
+# the feature; bump its tag together with the one above. A `--chassis-path`
+# project points both at the local checkout — a path dependency still needs
+# `version`, or cargo-deny reads it as a wildcard (CF-6 a).
+chassis = { git = "https://github.com/kennypassenier/chassis-rs", tag = "v3.14.0", version = "3.14.0", features = ["testing"] }
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json", "blocking", "cookies"] }
+tempfile = "3"
+
+[lints.rust]
+unsafe_code = "forbid"
