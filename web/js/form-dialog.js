@@ -35,6 +35,22 @@ function fieldRow(f, uid) {
   return { row, read };
 }
 
+/** The dialog shell around the field rows. @param {string} uid @param {{ title: string, description: string, accept: string }} o @param {HTMLElement[]} fieldRows */
+function buildDialog(uid, { title, description, accept }, fieldRows) {
+  const alert = h("div", { class: "kp-alert kp-alert--destructive", role: "alert", hidden: true });
+  const cancel = h("button", { type: "button", class: "kp-button" }, "Cancel");
+  const submit = h("button", { type: "submit", class: "kp-button kp-button--primary" }, accept);
+  const form = h("form", { class: "mc-dialog__form", novalidate: true },
+    h("div", { class: "kp-formgrid" }, ...fieldRows),
+    alert,
+    h("div", { class: "kp-dialog__actions" }, cancel, submit));
+  const dialog = /** @type {HTMLDialogElement} */ (h("dialog", { class: "kp-dialog mc-dialog mc-dialog--form", "aria-labelledby": `${uid}-t`, "aria-describedby": `${uid}-d` },
+    h("h2", { class: "kp-dialog__title", id: `${uid}-t` }, title),
+    h("p", { class: "kp-dialog__description", id: `${uid}-d` }, description),
+    form));
+  return { dialog, form, alert, cancel, submit };
+}
+
 /**
  * Ask for a few values. `save` runs on submit; when it throws, its sentence is
  * shown in the dialog and nothing closes. Resolves true after a save, else false.
@@ -44,17 +60,7 @@ export function formDialog({ title, description, accept, fields, save }) {
   return new Promise((resolve) => {
     const uid = `fd${++serial}`;
     const rows = fields.map((f) => ({ f, ...fieldRow(f, uid) }));
-    const alert = h("div", { class: "kp-alert kp-alert--destructive", role: "alert", hidden: true });
-    const cancel = h("button", { type: "button", class: "kp-button" }, "Cancel");
-    const submit = h("button", { type: "submit", class: "kp-button kp-button--primary" }, accept);
-    const form = h("form", { class: "mc-dialog__form", novalidate: true },
-      h("div", { class: "kp-formgrid" }, ...rows.map((r) => r.row)),
-      alert,
-      h("div", { class: "kp-dialog__actions" }, cancel, submit));
-    const dialog = /** @type {HTMLDialogElement} */ (h("dialog", { class: "kp-dialog mc-dialog mc-dialog--form", "aria-labelledby": `${uid}-t`, "aria-describedby": `${uid}-d` },
-      h("h2", { class: "kp-dialog__title", id: `${uid}-t` }, title),
-      h("p", { class: "kp-dialog__description", id: `${uid}-d` }, description),
-      form));
+    const { dialog, form, alert, cancel, submit } = buildDialog(uid, { title, description, accept }, rows.map((r) => r.row));
     let saved = false;
     /** @param {string} text */
     const fail = (text) => {

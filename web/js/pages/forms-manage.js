@@ -41,45 +41,69 @@ async function removeForm(f) {
   }
 }
 
+/**
+ * The dialog's shared state.
+ * @typedef {{ changed: boolean, detach: () => void, ui: ReturnType<typeof buildDialog> }} Manager
+ */
+
+/** The dialog with its table host and error line; the callbacks wire the two buttons. @param {{ add: () => void, done: () => void }} on */
+function buildDialog(on) {
+  const host = h("div", { class: "mc-formsdlg__table" });
+  const status = h("p", { class: "kp-alert kp-alert--destructive", role: "alert", hidden: true });
+  const dialog = /** @type {HTMLDialogElement} */ (h("dialog", { class: "kp-dialog mc-dialog mc-dialog--wide", "aria-labelledby": "forms-t", "aria-describedby": "forms-d" },
+    h("h2", { class: "kp-dialog__title", id: "forms-t" }, "Manage forms"),
+    h("p", { class: "kp-dialog__description", id: "forms-d" }, "The forms a medicine can have, and the unit each one is counted in."),
+    host, status,
+    h("div", { class: "kp-dialog__actions" },
+      button("Add form", { onClick: on.add }),
+      button("Done", { look: "kp-button--primary", onClick: on.done }))));
+  return { dialog, host, status };
+}
+
+/** Run an edit flow; redraw the table when it changed something. @param {Manager} d @param {Promise<boolean>} done */
+async function run(d, done) {
+  if (await done) {
+    d.changed = true;
+    await draw(d);
+  }
+}
+
+/** Edit and Delete of one form, in one fixed cell. @param {Manager} d @param {any} f */
+const formActions = (d, f) => h("span", { class: "mc-actions__pair" },
+  rowButton({ label: "Edit", aria: `Edit form ${f.name}`, onClick: () => run(d, editForm(f)) }),
+  rowButton({ label: "Delete", aria: `Delete form ${f.name}`, look: "kp-button--destructive", onClick: () => run(d, removeForm(f)) }));
+
+/** @param {Manager} d */
+async function draw(d) {
+  const { host, status } = d.ui;
+  try {
+    const forms = await api.forms();
+    status.hidden = true;
+    d.detach();
+    d.detach = drawEntityTable(host, {
+      label: "Forms", none: "No form matches.", pageSize: 10,
+      columns: [{ title: "Form" }, { title: "Unit" }, { title: "Medicines", sort: "number", numeric: true }, { title: "Actions", actions: true }],
+      rows: forms.map((/** @type {any} */ f) => ({ key: `f${f.id}`, cells: [f.name, f.unit, f.medicines, formActions(d, f)] })),
+    });
+  } catch (e) {
+    status.textContent = errorText(e);
+    status.hidden = false;
+  }
+}
+
 /** @returns {Promise<boolean>} true when a form was added, changed or deleted */
 export function openFormsManager() {
   return new Promise((resolve) => {
-    let changed = false;
-    const host = h("div", { class: "mc-formsdlg__table" });
-    const status = h("p", { class: "kp-alert kp-alert--destructive", role: "alert", hidden: true });
-    const dialog = /** @type {HTMLDialogElement} */ (h("dialog", { class: "kp-dialog mc-dialog mc-dialog--wide", "aria-labelledby": "forms-t", "aria-describedby": "forms-d" },
-      h("h2", { class: "kp-dialog__title", id: "forms-t" }, "Manage forms"),
-      h("p", { class: "kp-dialog__description", id: "forms-d" }, "The forms a medicine can have, and the unit each one is counted in."),
-      host, status,
-      h("div", { class: "kp-dialog__actions" },
-        button("Add form", { onClick: () => run(editForm(null)) }),
-        button("Done", { look: "kp-button--primary", onClick: () => dialog.close() }))));
-    let detach = () => {};
-
-    /** @param {Promise<boolean>} done */
-    async function run(done) { if (await done) { changed = true; await draw(); } }
-
-    async function draw() {
-      try {
-        const forms = await api.forms();
-        status.hidden = true;
-        detach();
-        detach = drawEntityTable(host, {
-          label: "Forms", none: "No form matches.", pageSize: 10,
-          columns: [{ title: "Form" }, { title: "Unit" }, { title: "Medicines", sort: "number", numeric: true }, { title: "Actions", actions: true }],
-          rows: forms.map((/** @type {any} */ f) => ({ key: `f${f.id}`, cells: [f.name, f.unit, f.medicines, h("span", { class: "mc-actions__pair" },
-            rowButton({ label: "Edit", aria: `Edit form ${f.name}`, onClick: () => run(editForm(f)) }),
-            rowButton({ label: "Delete", aria: `Delete form ${f.name}`, look: "kp-button--destructive", onClick: () => run(removeForm(f)) }))] })),
-        });
-      } catch (e) {
-        status.textContent = errorText(e);
-        status.hidden = false;
-      }
-    }
-
-    dialog.addEventListener("close", () => { detach(); dialog.remove(); resolve(changed); });
+    /** @type {Manager} */
+    const d = {
+      changed: false,
+      detach: () => {},
+      ui: buildDialog({ add: () => void run(d, editForm(null)), done: () => d.ui.dialog.close() }),
+    };
+    const { dialog } = d.ui;
+    dialog.addEventListener("close", () => { d.detach(); dialog.remove(); resolve(d.changed); });
     document.body.append(dialog);
     dialog.showModal();
-    void draw();
+    void draw(d);
   });
 }
