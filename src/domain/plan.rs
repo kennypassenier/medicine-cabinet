@@ -11,6 +11,8 @@ pub struct PlanSlot {
     pub minute: u32,
     pub time: String,
     pub dose: f64,
+    /// What stock is counted in ("capsules"); may be empty.
+    pub unit: String,
     /// `(intake id, status)` when this slot has been answered.
     pub answered: Option<(i64, String)>,
 }
@@ -35,6 +37,7 @@ pub struct PlannedDose {
     pub medicine_name: String,
     pub time: String,
     pub dose: f64,
+    pub unit: String,
     pub state: SlotState,
     pub intake_id: Option<i64>,
     /// Minutes until the dose (negative once it is late).
@@ -70,6 +73,7 @@ pub fn plan(mut slots: Vec<PlanSlot>, now_minute: u32) -> Vec<PlannedDose> {
             medicine_name: s.medicine_name,
             time: s.time,
             dose: s.dose,
+            unit: s.unit,
         })
         .collect()
 }
@@ -85,6 +89,7 @@ mod tests {
             minute,
             time: format!("{:02}:{:02}", minute / 60, minute % 60),
             dose: 1.0,
+            unit: "capsules".into(),
             answered: answered.map(|s| (7, s.to_string())),
         }
     }

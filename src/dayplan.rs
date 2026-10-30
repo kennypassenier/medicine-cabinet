@@ -24,6 +24,7 @@ pub fn day_slots(all: &[Medicine], logged: &[Intake], today: Date) -> Vec<PlanSl
                 minute: parse_minutes(&s.time).unwrap_or(0),
                 time: s.time.clone(),
                 dose: s.dose,
+                unit: m.stock_unit.clone(),
                 answered,
             });
         }

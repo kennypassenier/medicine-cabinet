@@ -4,6 +4,7 @@ use std::collections::HashSet;
 
 use crate::attention::Attention;
 use crate::domain::plan::{PlannedDose, SlotState};
+use crate::domain::units::amount;
 use crate::store::reminder_log::SentKey;
 
 /// One notification to send.
@@ -36,7 +37,9 @@ pub fn dose_reminders(date: &str, doses: &[PlannedDose], sent: &HashSet<SentKey>
         let text = match d.state {
             SlotState::Due => format!(
                 "Time for {} ({}), planned at {}.",
-                d.medicine_name, d.dose, d.time
+                d.medicine_name,
+                amount(d.dose, &d.unit),
+                d.time
             ),
             _ => format!(
                 "{} was planned at {} and is not logged yet.",
@@ -76,6 +79,7 @@ mod tests {
             medicine_name: "Vitamin D".into(),
             time: "08:00".into(),
             dose: 1.0,
+            unit: "capsules".into(),
             state,
             intake_id: None,
             minutes_until,
