@@ -13,6 +13,7 @@ mod schema;
 mod store;
 
 use axum::Router;
+use chassis::shell::pages::Page;
 use chassis::shell::webapp::WebApp;
 use chassis::storage::AppDbSpec;
 use chassis::{App, AppSpec};
@@ -20,6 +21,14 @@ use chassis::{App, AppSpec};
 mod embedded {
     include!(concat!(env!("OUT_DIR"), "/web_files.rs"));
 }
+
+/// The browser app's areas, in navigation order: (id, title, path).
+const PAGES: [(&str, &str, &str); 4] = [
+    ("today", "Today", "/"),
+    ("cabinet", "Cabinet", "/cabinet"),
+    ("find", "Find", "/find"),
+    ("history", "History", "/history"),
+];
 
 fn fail(e: impl std::fmt::Display) -> std::process::ExitCode {
     eprintln!("{e}");
@@ -45,5 +54,10 @@ async fn main() -> std::process::ExitCode {
     app.dashboard_routes(api::router(db));
     app.webapp(WebApp::embedded(embedded::FILES));
     app.brand_title("Medicine cabinet");
+    // Registered so the kit's own pages (Status, Clients, Storage) draw the
+    // same navigation as the browser app does.
+    for (order, (id, title, path)) in PAGES.iter().enumerate() {
+        app.page(Page::new(id, title, path).order(order as i32));
+    }
     app.run().await
 }

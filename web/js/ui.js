@@ -28,7 +28,7 @@ export const say = (text) => toast(text, { ms: 3500 });
 export function pageHeader({ title, description, actions = [] }) {
   return h("header", { class: "kp-page-header" },
     h("div", { class: "kp-page-header__inner" },
-      h("div", null, h("h1", { class: "kp-page-header__title", id: "page-title", tabindex: "-1" }, title), h("p", { class: "kp-page-header__description" }, description)),
+      h("div", null, h("div", { class: "kp-page-header__heading" }, h("div", { class: "kp-page-header__line" }, h("h1", { class: "kp-page-header__title", id: "page-title", tabindex: "-1" }, title))), h("p", { class: "kp-page-header__description" }, description)),
       actions.length ? h("div", { class: "kp-page-header__actions" }, ...actions) : null));
 }
 

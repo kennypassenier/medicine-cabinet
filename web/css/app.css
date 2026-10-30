@@ -11,7 +11,8 @@
   grid-template-columns: minmax(0, 1fr);
   align-content: start;
   gap: var(--mc-section-gap);
-  inline-size: min(100% - 2 * var(--kp-space-4, 1rem), 76rem);
+  /* Kenny: the page column is 80% of the viewport (never narrower than 64rem on a desktop). */
+  inline-size: min(max(80vw, 64rem), 100% - 2 * var(--kp-space-4, 1rem));
   margin-inline: auto;
   padding-block: var(--kp-space-6, 1.5rem) var(--kp-space-10, 3rem);
 }
@@ -22,7 +23,7 @@
 
 /* ---- Today ---------------------------------------------------------- */
 .mc-today { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--kp-space-5, 1.25rem); align-items: stretch; }
-.mc-today__first { display: grid; min-block-size: 22rem; place-items: center; }
+.mc-today__first { grid-column: 1 / -1; display: grid; min-block-size: 22rem; place-items: center; }
 
 @media (min-width: 52rem) {
   .mc-today { grid-template-columns: repeat(12, minmax(0, 1fr)); }
@@ -100,7 +101,8 @@
 @media (min-width: 52rem) {
   .mc-row { grid-template-columns: minmax(0, 2.2fr) minmax(0, 1.4fr) 16rem 7.5rem; grid-template-areas: "main when stock switch"; }
 }
-.mc-row__stock .kp-quantity { inline-size: 100%; max-inline-size: none; }
+.mc-row__stock .kp-quantity { grid-template-columns: auto minmax(0, 1fr) auto; justify-self: stretch; inline-size: 100%; max-inline-size: none; }
+.mc-row__stock .kp-quantity__field { inline-size: 100%; }
 
 /* ---- Medicine form ----------------------------------------------------- */
 .mc-form { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--kp-space-5, 1.25rem); align-items: stretch; }
