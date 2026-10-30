@@ -70,6 +70,17 @@ export const api = {
   today: () => call("GET", "/today", { timed: true }),
   search: (/** @type {string} */ symptom) => call("GET", "/search", { timed: true, query: { symptom } }),
   symptoms: () => call("GET", "/symptoms"),
+  addSymptom: (/** @type {{ name: string, category_id: number | null }} */ b) => call("POST", "/symptoms", { body: b }),
+  editSymptom: (/** @type {number} */ id, /** @type {{ name: string, category_id: number | null }} */ b) => call("PUT", `/symptoms/${id}`, { body: b }),
+  removeSymptom: (/** @type {number} */ id) => call("DELETE", `/symptoms/${id}`),
+  categories: () => call("GET", "/categories"),
+  addCategory: (/** @type {string} */ name) => call("POST", "/categories", { body: { name } }),
+  editCategory: (/** @type {number} */ id, /** @type {string} */ name) => call("PUT", `/categories/${id}`, { body: { name } }),
+  removeCategory: (/** @type {number} */ id) => call("DELETE", `/categories/${id}`),
+  forms: () => call("GET", "/forms"),
+  addForm: (/** @type {{ name: string, unit: string }} */ b) => call("POST", "/forms", { body: b }),
+  editForm: (/** @type {number} */ id, /** @type {{ name: string, unit: string }} */ b) => call("PUT", `/forms/${id}`, { body: b }),
+  removeForm: (/** @type {number} */ id) => call("DELETE", `/forms/${id}`),
   intakes: (/** @type {string | undefined} */ day, limit = 200) => call("GET", "/intakes", { query: { day, limit } }),
   /**
    * Record an intake now (or at `takenAt`). `plannedFor` ties it to a schedule slot.

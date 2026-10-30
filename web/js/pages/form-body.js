@@ -27,13 +27,14 @@ const orNull = (el) => {
  * @param {HTMLFormElement} form
  * @param {ReturnType<typeof blankModel>} model
  * @param {HTMLElement} tags the symptom combobox
+ * @param {number | null} formId the chosen form pill
  */
-export function readBody(form, model, tags) {
+export function readBody(form, model, tags, formId) {
   const q = (/** @type {string} */ label) => /** @type {HTMLElement | null} */ (form.querySelector(`[data-kp-quantity-label="${label}"]`));
   return {
     name: val(form, "name"),
     purpose: val(form, "purpose"),
-    form: val(form, "form"),
+    form_id: formId,
     strength: val(form, "strength"),
     notes: val(form, "notes"),
     active: model.active,

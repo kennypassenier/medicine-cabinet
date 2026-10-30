@@ -72,11 +72,13 @@ fn set_form(tx: &Transaction, medicine_id: i64, form: &str) -> Result<(), Error>
 
 fn seed_categories(tx: &Transaction) -> Result<Vec<(&'static str, i64)>, Error> {
     [
-        "Pain",
-        "Cold & flu",
-        "Allergy",
-        "Digestion",
+        "Head",
+        "Stomach",
+        "Muscles",
+        "Throat & nose",
+        "Eyes",
         "Sleep & energy",
+        "General",
     ]
     .into_iter()
     .map(|name| Ok((name, categories::create(tx, name)?)))
@@ -85,12 +87,11 @@ fn seed_categories(tx: &Transaction) -> Result<Vec<(&'static str, i64)>, Error> 
 
 /// Which category each demo symptom belongs to.
 fn categorise(tx: &Transaction, ids: &[(&str, i64)]) -> Result<(), Error> {
-    const LINKS: [(&str, &str); 11] = [
+    const LINKS: [(&str, &str); 10] = [
         ("headache", "Head"),
         ("toothache", "Head"),
         ("muscle pain", "Muscles"),
         ("fever", "General"),
-        ("sore throat", "Throat & nose"),
         ("sneezing", "Throat & nose"),
         ("itchy eyes", "Eyes"),
         ("heartburn", "Stomach"),

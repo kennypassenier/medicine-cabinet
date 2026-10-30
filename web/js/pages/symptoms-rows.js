@@ -22,7 +22,7 @@ export function resultRow(m, on) {
   const action = !on.usable
     ? linkButton("Open", `/medicine/${m.id}`, "kp-button--ghost")
     : m.as_needed
-      ? button("I took one", { look: "kp-button--primary", key: `find-${m.id}`, onClick: () => on.take(m), label: `I took one ${m.name}` })
+      ? button("I took one", { look: "kp-button--primary", key: `symptom-${m.id}`, onClick: () => on.take(m), label: `I took one ${m.name}` })
       : h("span", { class: "mc-result__scheduled" }, "Scheduled");
   return h("li", { class: "mc-result" },
     h("div", { class: "mc-result__main" },

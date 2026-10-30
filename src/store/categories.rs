@@ -47,8 +47,8 @@ fn clean_name(name: &str) -> Result<String, Error> {
 fn name_taken(e: chassis::storage::rusqlite::Error, name: &str) -> Error {
     if e.to_string().contains("UNIQUE") {
         return Error::invalid(
-            format!("the category '{name}' already exists"),
-            "pick another name, or edit the existing one",
+            format!("The category '{name}' already exists"),
+            "Pick another name, or edit the existing one.",
         );
     }
     db_err(e)

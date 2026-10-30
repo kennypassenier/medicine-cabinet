@@ -52,3 +52,17 @@ export function chips({ label, options, value, onChange }) {
   });
   return group;
 }
+
+/**
+ * Filter-style pills where several may be on (plain click toggles). `values` are the ones on.
+ * @param {{ label: string, options: [string, string][], values: string[], onChange: (values: string[]) => void }} o
+ */
+export function chipsMulti({ label, options, values, onChange }) {
+  const group = h("div", { class: "kp-segmented kp-segmented--chips", "data-kp-segmented": "multi", role: "group", "aria-label": label },
+    ...options.map(([v, text]) => h("button", { type: "button", class: "kp-segmented__item", "data-value": v, "aria-pressed": String(values.includes(v)) }, h("span", { class: "kp-segmented__label" }, text))));
+  group.addEventListener("kp-segmented-change", (e) => {
+    const list = /** @type {CustomEvent} */ (e).detail?.values;
+    if (Array.isArray(list)) onChange(list);
+  });
+  return group;
+}

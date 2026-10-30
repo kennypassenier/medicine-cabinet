@@ -5,7 +5,7 @@ import { h } from "../dom.js";
 import { daysLabel, formatDate } from "../clock.js";
 import { duration } from "../clock.js";
 import { stepper, toggle } from "../controls.js";
-import { statusBadges, specLine } from "../format.js";
+import { badge, statusBadges } from "../format.js";
 
 /** One line saying when a medicine is taken. @param {any} m */
 export function scheduleLine(m) {
@@ -21,7 +21,7 @@ export function scheduleLine(m) {
 
 /** The facts line under the name. @param {any} m */
 function facts(m) {
-  const parts = [specLine(m), m.purpose].filter(Boolean);
+  const parts = [m.strength, m.purpose].filter(Boolean);
   if (m.course_ends_on) parts.push(`course until ${formatDate(m.course_ends_on)}`);
   return parts.join(" · ");
 }
@@ -37,7 +37,7 @@ export function medicineRow(m, on) {
   return h("li", { class: "mc-row", "data-off": String(!m.active) },
     h("div", { class: "mc-row__main" },
       h("a", { class: "mc-row__name", href: `/medicine/${m.id}`, "data-key": `open-${m.id}` }, m.name),
-      h("span", { class: "mc-row__facts" }, facts(m)),
+      h("span", { class: "mc-row__facts" }, m.form ? badge("", m.form, "Form") : null, facts(m) ? h("span", null, facts(m)) : null),
       chips),
     h("div", { class: "mc-row__when" },
       h("span", { class: "mc-row__schedule" }, scheduleLine(m)),

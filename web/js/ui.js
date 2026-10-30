@@ -6,9 +6,12 @@ import { setCardState } from "/static/kp/js/card-state.js";
 import { h } from "./dom.js";
 import { ApiError } from "./api.js";
 
+/** A sentence with a capital and a full stop. @param {string} t */
+const sentence = (t) => { const s = t.trim(); return s ? `${s[0].toUpperCase()}${s.slice(1)}${/[.!?]$/.test(s) ? "" : "."}` : s; };
+
 /** The server's sentence and its remedy, joined as one human line. @param {unknown} e */
 export function errorText(e) {
-  if (e instanceof ApiError) return e.remedy ? `${e.message} ${e.remedy}` : e.message;
+  if (e instanceof ApiError) return e.remedy ? `${sentence(e.message)} ${sentence(e.remedy)}` : sentence(e.message);
   return e instanceof Error ? e.message : String(e);
 }
 

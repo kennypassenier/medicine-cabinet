@@ -50,8 +50,8 @@ fn clean(name: &str, unit: &str) -> Result<(String, String), Error> {
 fn name_taken(e: chassis::storage::rusqlite::Error, name: &str) -> Error {
     if e.to_string().contains("UNIQUE") {
         return Error::invalid(
-            format!("the form '{name}' already exists"),
-            "pick another name, or edit the existing one",
+            format!("The form '{name}' already exists"),
+            "Pick another name, or edit the existing one.",
         );
     }
     db_err(e)

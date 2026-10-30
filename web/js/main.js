@@ -6,7 +6,9 @@
 import { attachNavToggles, attachNavMenus, attachSkipLinks } from "/static/kp/js/components.js";
 import { attachThemePickers, themeMenuMarkup } from "/static/kp/js/theme-picker.js";
 import { attachTabbars, setTabbarCurrent } from "/static/kp/js/tabbar.js";
+import { attachSegmented } from "/static/kp/js/segmented.js";
 import { applyStoredCalm } from "/static/kp/js/calm.js";
+import { attachEffects } from "/static/kp/js/effects.js";
 import { h } from "./dom.js";
 import { AREAS, route, tabMarkup } from "./routes.js";
 import { reportError } from "./ui.js";
@@ -17,6 +19,8 @@ const tabbar = /** @type {HTMLElement} */ (document.getElementById("tabbar"));
 const tools = /** @type {HTMLElement} */ (document.getElementById("tools"));
 
 applyStoredCalm();
+// The themes' pointer effects (the dark theme's cursor glow) follow the mouse only once attached.
+attachEffects(document);
 
 /** @type {() => void} */
 let cleanup = () => {};
@@ -34,7 +38,12 @@ async function render() {
   const mine = ++seq;
   cleanup();
   cleanup = () => {};
-  const found = route(trimPath(location.pathname), location.search);
+  let found = route(trimPath(location.pathname), location.search);
+  if (found && "redirect" in found) {
+    history.replaceState(null, "", found.redirect);
+    found = route(trimPath(location.pathname), location.search);
+  }
+  if (found && "redirect" in found) return;
   markNav(found?.bar ?? "");
   if (!found) {
     document.title = "Not found · Medicine cabinet";
@@ -95,6 +104,8 @@ attachTabbars(document);
 attachNavToggles(document);
 attachNavMenus(document);
 attachSkipLinks(document);
+// Chips and pills are drawn by the screens after load; one listener on the document wires every group.
+attachSegmented(document);
 
 // Same-origin links to a screen of this app route in place; modified clicks open normally.
 document.addEventListener("click", (e) => {

@@ -89,8 +89,8 @@ fn name_taken(e: chassis::storage::rusqlite::Error, name: &str) -> Error {
     let text = e.to_string();
     if text.contains("UNIQUE") {
         return Error::invalid(
-            format!("'{name}' already exists"),
-            "pick another name, or edit the existing one",
+            format!("The symptom '{name}' already exists"),
+            "Pick another name, or edit the existing one.",
         );
     }
     db_err(e)

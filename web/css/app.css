@@ -80,10 +80,11 @@
 .mc-attention__more[hidden] { display: none; }
 
 /* ---- Cabinet ----------------------------------------------------------- */
-.mc-toolbar { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--kp-space-3, 0.75rem); align-items: end; }
+.mc-toolbar { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--kp-space-3, 0.75rem); align-items: start; }
 .mc-filters { min-inline-size: 0; }
 .mc-filters .kp-segmented { max-inline-size: 100%; }
-@media (min-width: 52rem) { .mc-toolbar { grid-template-columns: minmax(16rem, 1fr) minmax(0, 2fr); } }
+@media (min-width: 52rem) { .mc-toolbar { grid-template-columns: minmax(14rem, 1fr) minmax(0, 1.6fr) minmax(0, 1.4fr); } }
+.mc-toolbar > [hidden] { display: none; }
 
 .mc-list--rows { gap: 0; }
 .mc-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "main switch" "when when" "stock stock"; gap: var(--kp-space-2, 0.5rem) var(--kp-space-4, 1rem); align-items: center; padding-block: var(--kp-space-4, 1rem); }
@@ -91,6 +92,9 @@
 .mc-row[data-off="true"] .mc-row__main, .mc-row[data-off="true"] .mc-row__when { opacity: 0.65; }
 .mc-row__main { grid-area: main; display: grid; gap: var(--kp-space-1, 0.25rem); min-inline-size: 0; }
 .mc-row__name { font-size: var(--kp-text-lg, 1.125rem); font-weight: 600; overflow-wrap: anywhere; }
+.mc-row__facts { display: grid; grid-template-columns: max-content minmax(0, 1fr); justify-content: start; align-items: center; gap: var(--kp-space-2, 0.5rem); }
+.mc-row__facts > :only-child { grid-column: 1 / -1; }
+.mc-row__facts .kp-badge { white-space: nowrap; }
 .mc-row__facts, .mc-row__schedule { color: var(--muted-foreground); font-size: var(--kp-text-sm, 0.875rem); }
 .mc-row__symptoms { margin: 0; padding: 0; list-style: none; }
 .mc-row__when { grid-area: when; display: grid; gap: var(--kp-space-1, 0.25rem); min-inline-size: 0; }
@@ -113,6 +117,13 @@
 html .kp-formgrid.kp-formgrid { --kp-formgrid-max: none; inline-size: 100%; }
 @media (min-width: 52rem) {
   .mc-form { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .mc-form > .kp-form__summary { grid-row: 1; }
+  .mc-form__bar { grid-row: 5; }
+  .mc-form__about { grid-column: 1; grid-row: 2; }
+  .mc-form__when { grid-column: 2; grid-row: 2; }
+  .mc-form__helps { grid-column: 2; grid-row: 3; }
+  .mc-form__stock { grid-column: 1; grid-row: 3; }
+  .mc-form__dates { grid-column: 1 / -1; grid-row: 4; }
   .mc-form__bar { grid-template-columns: 12rem 16rem; justify-content: end; }
 }
 .mc-form__danger { max-inline-size: 100%; }
@@ -125,10 +136,13 @@ html .kp-formgrid.kp-formgrid { --kp-formgrid-max: none; inline-size: 100%; }
 .mc-slotedit > .kp-button { grid-area: remove; }
 .mc-slotedit__days { grid-area: days; }
 .mc-dialog-field { display: grid; gap: var(--kp-space-2, 0.5rem); margin-block: var(--kp-space-3, 0.75rem); }
-html .mc-shell :is(.kp-field__input, .kp-combobox__input, .kp-time input) { text-align: start; text-align-last: start; }
+html :is(.mc-shell, .mc-dialog) :is(.kp-field__input, .kp-combobox__input, .kp-time input) { text-align: start; text-align-last: start; }
 
-/* ---- Find -------------------------------------------------------------- */
-.mc-find__box { display: grid; gap: var(--kp-space-3, 0.75rem); }
+/* ---- Symptoms: search ---------------------------------------------------- */
+.mc-find__box { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--kp-space-4, 1rem); align-items: start; }
+.mc-find__ask { display: grid; gap: var(--kp-space-3, 0.75rem); align-content: start; }
+.mc-find__chips { min-inline-size: 0; }
+@media (min-width: 52rem) { .mc-find__box { grid-template-columns: minmax(0, 4fr) minmax(0, 8fr); gap: var(--kp-space-6, 1.5rem); } }
 .mc-find__input { font-size: var(--kp-text-xl, 1.25rem); min-block-size: 3.5rem; }
 .mc-find { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--kp-space-5, 1.25rem); align-items: stretch; }
 @media (min-width: 52rem) {
@@ -144,6 +158,32 @@ html .mc-shell :is(.kp-field__input, .kp-combobox__input, .kp-time input) { text
 .mc-result .mc-need__badges { grid-area: badges; }
 .mc-result .mc-need__badges:empty { display: none; }
 .mc-find__lack .mc-result { grid-template-columns: minmax(0, 1fr) auto; }
+
+/* ---- Symptoms: management ------------------------------------------------ */
+.mc-manage { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--kp-space-5, 1.25rem); align-items: stretch; }
+.mc-manage__picked { margin: 0; color: var(--muted-foreground); }
+.mc-manage__catbuttons { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--kp-space-3, 0.75rem); }
+.mc-manage__cats .kp-card__data { display: grid; gap: var(--kp-space-4, 1rem); align-content: start; }
+.mc-manage__table, .mc-manage__filter { display: grid; gap: var(--kp-space-3, 0.75rem); min-inline-size: 0; }
+.mc-manage__syms .kp-card__data { display: grid; gap: var(--kp-space-3, 0.75rem); align-content: start; }
+@media (min-width: 52rem) {
+  .mc-manage__cats .kp-card__data { grid-template-columns: minmax(0, 8fr) minmax(0, 4fr); column-gap: var(--kp-space-6, 1.5rem); align-items: start; }
+  .mc-manage__filter { grid-row: 1 / span 2; }
+  .mc-manage__picked { align-self: end; }
+}
+/* The Edit / Delete pair: two equal columns, so every row's buttons stand in the same place. */
+.mc-actions__pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--kp-space-2, 0.5rem); }
+.mc-entity .mc-actions-head { inline-size: 12.5rem; }
+.mc-dialog.mc-dialog--wide { inline-size: min(50rem, 100vw - 2rem); max-inline-size: none; }
+.mc-dialog.mc-dialog--form { inline-size: min(34rem, 100vw - 2rem); }
+.mc-dialog__form { display: grid; gap: var(--kp-space-4, 1rem); }
+.mc-formsdlg__table { display: grid; margin-block: var(--kp-space-3, 0.75rem); min-block-size: 20rem; align-content: start; }
+
+/* ---- Medicine form: form pills and the symptom picker ---------------------- */
+.mc-pickgroups { grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr)); align-items: start; }
+.mc-formpills, .mc-pick, .mc-pickgroups { display: grid; gap: var(--kp-space-3, 0.75rem); min-inline-size: 0; }
+.mc-pickgroup { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--kp-space-1, 0.25rem); }
+.mc-pickgroup__name { color: var(--muted-foreground); font-size: var(--kp-text-sm, 0.875rem); }
 
 /* ---- History ----------------------------------------------------------- */
 .mc-slot__time--day { display: grid; grid-auto-flow: row; gap: var(--kp-space-1, 0.25rem); font-size: var(--kp-text-base, 1rem); }

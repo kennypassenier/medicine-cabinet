@@ -5,8 +5,9 @@ import { h, redraw } from "../dom.js";
 import { api } from "../api.js";
 import { chips, wire } from "../controls.js";
 import { onTick } from "../ticker.js";
-import { dataCard, pageHeader, reportError, linkButton, say } from "../ui.js";
+import { button, dataCard, pageHeader, reportError, linkButton, say } from "../ui.js";
 import { medicineRow } from "./cabinet-row.js";
+import { openFormsManager } from "./forms-manage.js";
 
 /** The filters, by key. */
 const FILTERS = /** @type {const} */ ({
@@ -27,18 +28,20 @@ export function mount(root) {
   const params = new URLSearchParams(location.search);
   let query = params.get("q") ?? "";
   let filter = /** @type {keyof typeof FILTERS} */ (params.get("f") in FILTERS ? params.get("f") : "all");
+  let formFilter = params.get("form") ?? "";
   let meds = /** @type {any[]} */ ([]);
   let alive = true;
   let loaded = false;
   /** @type {Map<number, { timer: number, base: number, value: number }>} */
   const pending = new Map();
 
-  const header = pageHeader({ title: "Cabinet", description: "Everything you keep at home. Switch a medicine off to hide its schedule everywhere.", actions: [linkButton("Add medicine", "/medicine/new", "kp-button--primary")] });
-  const search = /** @type {HTMLInputElement} */ (h("input", { class: "kp-field__input", type: "search", id: "cab-q", placeholder: "Search name, purpose or symptom", autocomplete: "off", value: query }));
-  const filterSlot = h("div", { class: "mc-filters" });
+  const header = pageHeader({ title: "Cabinet", description: "Everything you keep at home. Switch a medicine off to hide its schedule everywhere.", actions: [button("Manage forms", { onClick: () => void manageForms() }), linkButton("Add medicine", "/medicine/new", "kp-button--primary")] });
+  const search = /** @type {HTMLInputElement} */ (h("input", { class: "kp-field__input", type: "search", id: "cab-q", placeholder: "Name, purpose or symptom", autocomplete: "off", value: query }));
+  const filterSlot = h("div", { class: "kp-field mc-filters" });
+  const formSlot = h("div", { class: "kp-field mc-filters" });
   const tools = h("div", { class: "mc-toolbar" },
     h("div", { class: "kp-field mc-toolbar__search" }, h("label", { class: "kp-field__label", for: "cab-q" }, "Search"), search),
-    filterSlot);
+    filterSlot, formSlot);
   const list = dataCard({ id: "cab", title: "Medicines", description: "Newest changes show at once; stock edits are saved a moment after the last tap.", onRetry: () => load() });
   list.data.classList.add("mc-rows");
   root.append(header, tools, list.card);
@@ -48,11 +51,12 @@ export function mount(root) {
     const p = new URLSearchParams();
     if (query) p.set("q", query);
     if (filter !== "all") p.set("f", filter);
+    if (formFilter) p.set("form", formFilter);
     history.replaceState(null, "", p.size ? `?${p}` : location.pathname);
   }
 
   function drawFilters() {
-    filterSlot.replaceChildren(chips({
+    filterSlot.replaceChildren(h("span", { class: "kp-field__label" }, "Show"), chips({
       label: "Show",
       value: filter,
       options: Object.entries(FILTERS).map(([k, [label, fn]]) => [k, label, meds.filter(fn).length]),
@@ -62,12 +66,30 @@ export function mount(root) {
         draw();
       },
     }));
+    drawFormFilter();
+  }
+
+  /** The form pills: only forms some medicine has, with how many. */
+  function drawFormFilter() {
+    const names = [...new Map(meds.filter((m) => m.form_id).map((m) => [String(m.form_id), m.form])).entries()].sort((a, b) => a[1].localeCompare(b[1]));
+    if (formFilter && !names.some(([id]) => id === formFilter)) formFilter = "";
+    formSlot.hidden = names.length === 0;
+    formSlot.replaceChildren(h("span", { class: "kp-field__label" }, "Form"), chips({
+      label: "Form",
+      value: formFilter,
+      options: [["", "Any form", meds.length], ...names.map(([id, name]) => /** @type {[string, string, number]} */ ([id, name, meds.filter((m) => String(m.form_id) === id).length]))],
+      onChange: (v) => { formFilter = v; syncUrl(); draw(); },
+    }));
+  }
+
+  async function manageForms() {
+    if (await openFormsManager()) await load();
   }
 
   function draw() {
     if (!loaded) return;
     const q = query.trim().toLowerCase();
-    const shown = meds.filter((m) => FILTERS[filter][1](m) && (!q || haystack(m).includes(q))).sort((a, b) => a.name.localeCompare(b.name));
+    const shown = meds.filter((m) => FILTERS[filter][1](m) && (!formFilter || String(m.form_id) === formFilter) && (!q || haystack(m).includes(q))).sort((a, b) => a.name.localeCompare(b.name));
     header.querySelector(".kp-page-header__description")?.replaceChildren(`${meds.length} ${meds.length === 1 ? "medicine" : "medicines"} at home. Switch one off to hide its schedule everywhere.`);
     if (!meds.length) return list.state("empty", { title: "Your cabinet is empty", text: "Add the first medicine to see it here.", action: linkButton("Add your first medicine", "/medicine/new", "kp-button--primary") });
     if (!shown.length) {
@@ -84,6 +106,7 @@ export function mount(root) {
   function reset() {
     query = "";
     filter = "all";
+    formFilter = "";
     search.value = "";
     syncUrl();
     drawFilters();
