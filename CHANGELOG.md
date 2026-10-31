@@ -6,6 +6,8 @@ carries a **Migration** section saying what an operator must do.
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-10-31
+
 ### Added
 - Medicines with purpose, form, strength, notes, expiry and opened-on dates,
   a course end date, and stock with a low-stock threshold.
