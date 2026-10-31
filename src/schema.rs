@@ -98,11 +98,22 @@ CREATE TABLE reminder_log (
 );
 ";
 
+/// What was last sent to the calendar hub, per external id, so only changes
+/// are posted and an event that is no longer wanted can be deleted.
+const V5: &str = "
+CREATE TABLE agenda_sent (
+    external_id TEXT PRIMARY KEY,
+    fingerprint TEXT NOT NULL,
+    sent_at     TEXT NOT NULL DEFAULT (datetime('now'))
+);
+";
+
 pub fn migrations() -> Vec<Migration> {
     vec![
         Migration::sql(V1),
         Migration::sql(V2),
         Migration::sql(V3),
         Migration::sql(V4),
+        Migration::sql(V5),
     ]
 }

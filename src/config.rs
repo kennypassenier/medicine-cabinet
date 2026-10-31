@@ -54,6 +54,20 @@ impl ReminderConfig {
     }
 }
 
+/// The calendar hub, optional: without an address the sync stays off.
+pub fn hub_from_env() -> Option<crate::agenda::HubConfig> {
+    let base = std::env::var("MEDICINE_CABINET_ALMANAC_URL").ok()?;
+    let token = std::env::var("MEDICINE_CABINET_ALMANAC_TOKEN").ok()?;
+    let source_id = std::env::var("MEDICINE_CABINET_ALMANAC_SOURCE")
+        .unwrap_or_else(|_| "medicine-cabinet".into());
+    let base_url = base.trim().trim_end_matches('/').to_string();
+    (!base_url.is_empty() && !token.trim().is_empty()).then(|| crate::agenda::HubConfig {
+        base_url,
+        source_id,
+        token: token.trim().to_string(),
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

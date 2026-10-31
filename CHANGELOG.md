@@ -20,5 +20,9 @@ carries a **Migration** section saying what an operator must do.
   `cabinet.attention`) with a sent-log so a restart repeats nothing;
   `MEDICINE_CABINET_TIMEZONE` (default UTC) and `MEDICINE_CABINET_DIGEST_HOUR`
   (default 9).
+- Calendar sync with Almanac (optional: `MEDICINE_CABINET_ALMANAC_URL`,
+  `MEDICINE_CABINET_ALMANAC_TOKEN`, `MEDICINE_CABINET_ALMANAC_SOURCE`): all-day
+  events for an expiry, the last day of a course and a reorder date a week
+  before the predicted run-out; only changes are sent, stale events deleted.
 - Installable app icons (192, 512, maskable) for the PWA support of chassis.
 - Project created with `chassis new` (chassis v3.14.0).

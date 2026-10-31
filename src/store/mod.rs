@@ -1,5 +1,6 @@
 //! Persistence: SQL lives here and nowhere else.
 
+pub mod agenda_sent;
 pub mod categories;
 pub mod forms;
 pub mod intakes;

@@ -7,6 +7,7 @@
 
 #![forbid(unsafe_code)]
 
+mod agenda;
 mod api;
 mod attention;
 mod config;
@@ -64,6 +65,9 @@ async fn main() -> std::process::ExitCode {
     #[cfg(debug_assertions)]
     seed::spawn(db.clone());
     reminders::spawn(db.clone(), app.notifier(), reminder_config);
+    if let Some(hub) = config::hub_from_env() {
+        agenda::spawn(db.clone(), hub, reminder_config);
+    }
     app.dashboard_routes(api::router(db));
     app.webapp(WebApp::embedded(embedded::FILES));
     app.brand_title("Medicine cabinet");
