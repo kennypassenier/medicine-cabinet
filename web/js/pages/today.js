@@ -19,15 +19,18 @@ import { renderAsNeeded } from "./today-asneeded.js";
  * }} TodayPage
  */
 
-/** Build the page skeleton into `root`. @param {HTMLElement} root @param {{ reload: () => void, band: () => void }} on */
+/** Build the page skeleton into `root`. @param {HTMLElement} root @param {{ reload: () => void }} on */
 function buildLayout(root, on) {
-  const heading = pageHeader({ title: "Today", description: longDay() });
-  const next = dataCard({ id: "next", title: "Next dose", description: "What to take now, or next.", className: "mc-today__next", onRetry: on.reload });
-  const sched = dataCard({ id: "sched", title: "Schedule", description: "Every dose planned for today. Tap Take when you have taken it.", className: "mc-today__schedule", onRetry: on.reload });
-  const need = dataCard({ id: "need", title: "When needed", description: "Medicines you take as symptoms call for them. The cabinet checks the safe gap first.", className: "mc-today__asneeded", onRetry: on.reload });
-  const band = attentionBand(on.band);
-  const grid = h("div", { class: "mc-today" }, next.card, band, sched.card, need.card);
-  root.append(heading, grid);
+  const heading = pageHeader({ title: "Today", updated: `updated ${nowParam().slice(11)}`, description: longDay() });
+  const next = dataCard({ id: "next", title: "Next dose", description: "What to take now, or next.", onRetry: on.reload });
+  const sched = dataCard({ id: "sched", title: "Schedule", description: "Every dose planned for today. Tap Take when you have taken it.", onRetry: on.reload });
+  const need = dataCard({ id: "need", title: "When needed", description: "Medicines you take as symptoms call for them. The cabinet checks the safe gap first.", onRetry: on.reload });
+  const band = attentionBand();
+  next.card.dataset.kpSpan = "4";
+  sched.card.dataset.kpSpan = "8";
+  need.card.dataset.kpSpan = "12";
+  const grid = h("div", { class: "kp-ops__body" }, next.card, sched.card, need.card);
+  root.append(heading, band, grid);
   for (const c of [next, sched, need]) c.state("loading");
   return { heading, next, sched, need, band, grid };
 }
@@ -37,7 +40,8 @@ function draw(t) {
   if (!t.model) return;
   const { today, meds } = t.model;
   const { heading, grid, next, sched, need, band } = t.ui;
-  heading.querySelector(".kp-page-header__description")?.replaceChildren(`${longDay()} · updated ${nowParam().slice(11)}`);
+  heading.querySelector(".kp-page-header__description")?.replaceChildren(longDay());
+  heading.querySelector(".kp-page-header__updated")?.replaceChildren(`updated ${nowParam().slice(11)}`);
   if (meds.size === 0) return firstRun(grid);
   const on = { take: (/** @type {any} */ d) => log(t, d, "taken"), skip: (/** @type {any} */ d) => log(t, d, "skipped"), undo: (/** @type {any} */ d) => undo(t, d) };
   redraw(grid, () => {
@@ -55,11 +59,10 @@ function draw(t) {
 
 /** The welcome of an empty cabinet. @param {HTMLElement} grid */
 function firstRun(grid) {
-  grid.replaceChildren(h("section", { class: "kp-card mc-today__first" },
-    h("div", { class: "kp-empty" },
-      h("h2", { class: "kp-empty__title" }, "Your cabinet is empty"),
-      h("p", { class: "kp-empty__body" }, "Add the first medicine, with its schedule and how much you have. Today then tells you what to take and when, and warns before anything runs out or expires."),
-      linkButton("Add your first medicine", "/medicine/new", "kp-button--primary kp-button--lg"))));
+  const first = dataCard({ id: "first", title: "Your cabinet is empty" });
+  first.card.dataset.kpSpan = "12";
+  first.state("empty", { title: "Your cabinet is empty", text: "Add the first medicine, with its schedule and how much you have. Today then tells you what to take and when, and warns before anything runs out or expires.", action: linkButton("Add your first medicine", "/medicine/new", "kp-button--primary kp-button--lg") });
+  grid.replaceChildren(first.card);
 }
 
 /** @param {TodayPage} t @param {boolean} [manual] */
@@ -111,7 +114,7 @@ export function mount(root) {
   /** @type {TodayPage} */
   const t = {
     model: null, loadedOnce: false, alive: true,
-    ui: buildLayout(root, { reload: () => void load(t, true), band: () => draw(t) }),
+    ui: buildLayout(root, { reload: () => void load(t, true) }),
   };
   void load(t);
   const stop = onTick(() => load(t));

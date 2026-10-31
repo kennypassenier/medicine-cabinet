@@ -5,7 +5,7 @@
 import { h } from "../dom.js";
 import { api } from "../api.js";
 import { ask } from "../dialogs.js";
-import { drawEntityTable, rowButton } from "../entity-table.js";
+import { drawEntityTable, rowActions, rowButton } from "../entity-table.js";
 import { formDialog } from "../form-dialog.js";
 import { button, errorText, reportError, say } from "../ui.js";
 
@@ -48,9 +48,9 @@ async function removeForm(f) {
 
 /** The dialog with its table host and error line; the callbacks wire the two buttons. @param {{ add: () => void, done: () => void }} on */
 function buildDialog(on) {
-  const host = h("div", { class: "mc-formsdlg__table" });
+  const host = h("div", { class: "kp-dialog__body" });
   const status = h("p", { class: "kp-alert kp-alert--destructive", role: "alert", hidden: true });
-  const dialog = /** @type {HTMLDialogElement} */ (h("dialog", { class: "kp-dialog mc-dialog mc-dialog--wide", "aria-labelledby": "forms-t", "aria-describedby": "forms-d" },
+  const dialog = /** @type {HTMLDialogElement} */ (h("dialog", { class: "kp-dialog kp-dialog--wider", "aria-labelledby": "forms-t", "aria-describedby": "forms-d" },
     h("h2", { class: "kp-dialog__title", id: "forms-t" }, "Manage forms"),
     h("p", { class: "kp-dialog__description", id: "forms-d" }, "The forms a medicine can have, and the unit each one is counted in."),
     host, status,
@@ -69,7 +69,7 @@ async function run(d, done) {
 }
 
 /** Edit and Delete of one form, in one fixed cell. @param {Manager} d @param {any} f */
-const formActions = (d, f) => h("span", { class: "mc-actions__pair" },
+const formActions = (d, f) => rowActions(
   rowButton({ label: "Edit", aria: `Edit form ${f.name}`, onClick: () => run(d, editForm(f)) }),
   rowButton({ label: "Delete", aria: `Delete form ${f.name}`, look: "kp-button--destructive", onClick: () => run(d, removeForm(f)) }));
 
@@ -81,7 +81,7 @@ async function draw(d) {
     status.hidden = true;
     d.detach();
     d.detach = drawEntityTable(host, {
-      label: "Forms", none: "No form matches.", pageSize: 10,
+      label: "Forms", none: "No form matches.", pageSize: 10, cardsAt: "30rem",
       columns: [{ title: "Form" }, { title: "Unit" }, { title: "Medicines", sort: "number", numeric: true }, { title: "Actions", actions: true }],
       rows: forms.map((/** @type {any} */ f) => ({ key: `f${f.id}`, cells: [f.name, f.unit, f.medicines, formActions(d, f)] })),
     });

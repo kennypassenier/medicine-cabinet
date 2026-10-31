@@ -9,8 +9,8 @@ import { reportError, say } from "../ui.js";
 
 const plural = (/** @type {number} */ n, /** @type {string} */ one, /** @type {string} */ many) => `${n} ${n === 1 ? one : many}`;
 
-/** The category pills of a symptom dialog: "None" first. @param {any[]} categories */
-const categoryChoices = (categories) => /** @type {[string, string][]} */ ([["", "No category"], ...categories.map((c) => [String(c.id), c.name])]);
+/** The category pills of a symptom dialog; none pressed means no category. @param {any[]} categories */
+const categoryChoices = (categories) => /** @type {[string, string][]} */ (categories.map((c) => [String(c.id), c.name]));
 
 /** @param {string} v */
 const categoryId = (v) => (v ? Number(v) : null);
@@ -23,7 +23,7 @@ export function addSymptom(categories, preset = null) {
     accept: "Add symptom",
     fields: [
       { name: "name", label: "Name", required: true, hint: "e.g. headache" },
-      { name: "category", label: "Category", choices: categoryChoices(categories), value: preset ? String(preset) : "", hint: "Where it is listed." },
+      { name: "category", label: "Category", choices: categoryChoices(categories), none: true, value: preset ? String(preset) : "", hint: "Where it is listed." },
     ],
     save: async (v) => { await api.addSymptom({ name: v.name, category_id: categoryId(v.category) }); say(`${v.name.toLowerCase()} added.`); },
   });
@@ -37,7 +37,7 @@ export function editSymptom(s, categories) {
     accept: "Save changes",
     fields: [
       { name: "name", label: "Name", required: true, value: s.name },
-      { name: "category", label: "Category", choices: categoryChoices(categories), value: s.category_id ? String(s.category_id) : "", hint: "Move it to another group." },
+      { name: "category", label: "Category", choices: categoryChoices(categories), none: true, value: s.category_id ? String(s.category_id) : "", hint: "Move it to another group." },
     ],
     save: async (v) => { await api.editSymptom(s.id, { name: v.name, category_id: categoryId(v.category) }); say(`${v.name.toLowerCase()} saved.`); },
   });

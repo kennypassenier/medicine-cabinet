@@ -1,8 +1,8 @@
 // Shared view helpers built only from kp-themes parts: toasts, the page
 // header and the card that holds loading / empty / failed / filled.
 
-import { toast } from "/static/kp/js/overlays.js";
-import { setCardState } from "/static/kp/js/card-state.js";
+import { toast } from "/static/kp/dist/kp-themes.min.js";
+import { setCardState } from "/static/kp/dist/kp-themes.min.js";
 import { h } from "./dom.js";
 import { ApiError } from "./api.js";
 
@@ -25,13 +25,17 @@ export function reportError(what, e) {
 export const say = (text) => toast(text, { ms: 3500 });
 
 /**
- * The page header: title and one sentence on the left, the actions on the right.
- * @param {{ title: string, description: string, actions?: HTMLElement[] }} p
+ * The page header in the operations-page anatomy: title, the optional
+ * "updated" line right after it, one sentence, and the actions on the right.
+ * @param {{ title: string, description: string, updated?: string, actions?: HTMLElement[] }} p
  */
-export function pageHeader({ title, description, actions = [] }) {
-  return h("header", { class: "kp-page-header" },
+export function pageHeader({ title, description, updated, actions = [] }) {
+  return h("header", { class: "kp-page-header kp-ops__head" },
     h("div", { class: "kp-page-header__inner" },
-      h("div", null, h("div", { class: "kp-page-header__heading" }, h("div", { class: "kp-page-header__line" }, h("h1", { class: "kp-page-header__title", id: "page-title", tabindex: "-1" }, title))), h("p", { class: "kp-page-header__description" }, description)),
+      h("div", null,
+        h("h1", { class: "kp-page-header__title", id: "page-title", tabindex: "-1" }, title),
+        updated === undefined ? null : h("time", { class: "kp-page-header__updated" }, updated),
+        h("p", { class: "kp-page-header__description" }, description)),
       actions.length ? h("div", { class: "kp-page-header__actions" }, ...actions) : null));
 }
 

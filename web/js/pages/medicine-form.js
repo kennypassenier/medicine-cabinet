@@ -1,9 +1,9 @@
 // Add / edit a medicine: four cards (about, when, stock, dates) in one form,
 // symptom chips with suggestions, and a clearly confirmed delete.
 
-import { attachForms } from "/static/kp/js/forms.js";
-import { attachComboboxes } from "/static/kp/js/combobox.js";
-import { attachDatePickers } from "/static/kp/js/datepicker.js";
+import { attachForms } from "/static/kp/dist/kp-themes.min.js";
+import { attachComboboxes } from "/static/kp/dist/kp-themes.min.js";
+import { attachDatePickers } from "/static/kp/dist/kp-themes.min.js";
 import { h } from "../dom.js";
 import { api } from "../api.js";
 import { wire } from "../controls.js";
@@ -33,11 +33,12 @@ async function start(p) {
   }
 }
 
-/** The form element: the cards in order, then the Cancel / Save bar. @param {any | null} med @param {HTMLElement[]} cards */
+/** The form element: the cards in the page's 12-column body, then the Cancel / Save bar. @param {any | null} med @param {HTMLElement[]} cards */
 function formElement(med, cards) {
-  return /** @type {HTMLFormElement} */ (h("form", { class: "kp-form mc-form", "data-kp-form": "", novalidate: "", "aria-labelledby": "page-title" },
-    h("div", { class: "kp-form__summary", "data-kp-form-summary": "", tabindex: "-1", hidden: true }), ...cards,
-    h("div", { class: "mc-form__bar" }, linkButton("Cancel", "/cabinet"), h("button", { type: "submit", class: "kp-button kp-button--primary", "data-kp-submit": "" }, med ? "Save changes" : "Add medicine"))));
+  const bar = h("div", { class: "kp-row kp-justify-end", "data-kp-span": "12" }, linkButton("Cancel", "/cabinet"), h("button", { type: "submit", class: "kp-button kp-button--primary", "data-kp-submit": "" }, med ? "Save changes" : "Add medicine"));
+  return /** @type {HTMLFormElement} */ (h("form", { class: "kp-form kp-ops__body", "data-kp-form": "", novalidate: "", "aria-labelledby": "page-title" },
+    h("div", { class: "kp-form__summary", "data-kp-form-summary": "", "data-kp-span": "12", tabindex: "-1", hidden: true }),
+    ...cards, bar));
 }
 
 /** Replace the loading card by the form, filled from `med` when editing. @param {MedicinePage} p @param {any | null} med @param {any[]} known @param {any[]} forms */
@@ -50,14 +51,14 @@ function build(p, med, known, forms) {
   p.pills = pills;
   p.when = when;
   when.draw();
-  const form = formElement(med, [aboutSection(med, pills.row), when.el, helpsSection(sym.field), stockSection(med, model, unit.row), datesSection(med), unit.list]);
+  const form = formElement(med, [aboutSection(med, pills.row), when.el, stockSection(med, model, unit.row), helpsSection(sym.field), datesSection(med), unit.list]);
   const danger = med ? dangerSection(med, () => void remove(p, med)) : null;
   p.root.replaceChildren(
     pageHeader({ title: med ? med.name : "Add a medicine", description: med ? "Change anything, then save. Stock here replaces the current count." : "Fill in what you know. Only the name is required; you can edit everything later." }),
-    form, ...(danger ? [danger] : []));
+    form, ...(danger ? [h("div", { class: "kp-ops__body" }, danger)] : []));
   wire(form);
   p.detach.push(attachForms(p.root, { wrapper: ".kp-formgrid__row" }), attachComboboxes(form), attachDatePickers(form));
-  sym.wire();
+  p.detach.push(sym.wire());
   form.addEventListener("kp-form-valid", () => void save(p, form, model, sym.box, med));
 }
 
@@ -66,6 +67,7 @@ async function save(p, form, model, tags, med) {
   const submit = /** @type {HTMLButtonElement} */ (form.querySelector("[data-kp-submit]"));
   submit.disabled = true;
   try {
+    if (!model.asNeeded && p.when) model.slots = p.when.read();
     const body = readBody(form, model, tags, p.pills?.value() ?? null);
     const saved = med ? await api.update(med.id, body) : await api.create(body);
     say(`${saved.name} ${med ? "saved" : "added to the cabinet"}.`);
@@ -98,7 +100,8 @@ export function mount(root, { params, navigate }) {
     root, id, navigate, alive: true, pills: null, when: null, detach: [],
     holder: dataCard({ id: "load", title: id ? "Loading the medicine" : "New medicine", onRetry: () => start(p) }),
   };
-  root.append(p.holder.card);
+  p.holder.card.dataset.kpSpan = "12";
+  root.append(h("div", { class: "kp-ops__body" }, p.holder.card));
   p.holder.state("loading");
   void start(p);
   return () => {

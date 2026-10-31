@@ -2,7 +2,7 @@
 // medicine into the form's model. Empty optional fields stay out of the body.
 
 import { stepperValue } from "../controls.js";
-import { combobox } from "/static/kp/js/combobox.js";
+import { combobox } from "/static/kp/dist/kp-themes.min.js";
 import { dateValue } from "./form-fields.js";
 import { newSlot } from "./form-schedule.js";
 

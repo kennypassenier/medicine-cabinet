@@ -25,4 +25,7 @@ carries a **Migration** section saying what an operator must do.
   events for an expiry, the last day of a course and a reorder date a week
   before the predicted run-out; only changes are sent, stale events deleted.
 - Installable app icons (192, 512, maskable) for the PWA support of chassis.
-- Project created with `chassis new` (chassis v3.14.0).
+- Built on chassis-rs 4.0.0 and kp-themes 12.0.0 (the single bundle, the kit's
+  runtime and PWA support). Reminders reach kyu through the kit's shared
+  sender: set `MEDICINE_CABINET_NOTIFY_URL` and `MEDICINE_CABINET_NOTIFY_TOKEN`.
+- Project created with `chassis new`.

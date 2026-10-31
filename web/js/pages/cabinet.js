@@ -1,6 +1,7 @@
 // Cabinet: every medicine, searchable and filterable, with the on/off switch
 // (it switches the schedule too) and quick stock adjust. A tap opens the edit form.
 
+import { attachToolbars } from "/static/kp/dist/kp-themes.min.js";
 import { h, redraw } from "../dom.js";
 import { api } from "../api.js";
 import { wire } from "../controls.js";
@@ -22,17 +23,19 @@ import { openFormsManager } from "./forms-manage.js";
 /** Build the page skeleton into `root`. @param {HTMLElement} root @param {string} query @param {{ manageForms: () => void, load: () => void }} on */
 function buildLayout(root, query, on) {
   const header = pageHeader({ title: "Cabinet", description: "Everything you keep at home. Switch a medicine off to hide its schedule everywhere.", actions: [button("Manage forms", { onClick: on.manageForms }), linkButton("Add medicine", "/medicine/new", "kp-button--primary")] });
-  const search = /** @type {HTMLInputElement} */ (h("input", { class: "kp-field__input", type: "search", id: "cab-q", placeholder: "Name, purpose or symptom", autocomplete: "off", value: query }));
-  const filterSlot = h("div", { class: "kp-field mc-filters" });
-  const formSlot = h("div", { class: "kp-field mc-filters" });
-  const tools = h("div", { class: "mc-toolbar" },
-    h("div", { class: "kp-field mc-toolbar__search" }, h("label", { class: "kp-field__label", for: "cab-q" }, "Search"), search),
-    filterSlot, formSlot);
+  const search = /** @type {HTMLInputElement} */ (h("input", { class: "kp-field__input kp-toolbar__input", type: "search", id: "cab-q", placeholder: "Name, purpose or symptom", "aria-label": "Search medicines", autocomplete: "off", value: query }));
+  const filterSlot = h("div", { class: "kp-toolbar__group", role: "group", "aria-label": "Show" });
+  const formSlot = h("div", { class: "kp-toolbar__group", role: "group", "aria-label": "Form" });
+  const count = h("div", { class: "kp-toolbar__state", role: "status" });
+  const tools = h("div", { class: "kp-toolbar kp-ops__toolbar", "data-kp-toolbar": "", role: "group", "aria-label": "Find medicines" },
+    h("div", { class: "kp-toolbar__search" }, search),
+    h("div", { class: "kp-toolbar__filters" }, filterSlot, formSlot),
+    count);
   const list = dataCard({ id: "cab", title: "Medicines", description: "Newest changes show at once; stock edits are saved a moment after the last tap.", onRetry: on.load });
-  list.data.classList.add("mc-rows");
-  root.append(header, tools, list.card);
+  list.card.dataset.kpSpan = "12";
+  root.append(header, tools, h("div", { class: "kp-ops__body" }, list.card));
   list.state("loading");
-  return { header, search, filterSlot, formSlot, list };
+  return { header, search, filterSlot, formSlot, count, tools, list };
 }
 
 function drawFilters(/** @type {Cabinet} */ c) {
@@ -42,8 +45,9 @@ function drawFilters(/** @type {Cabinet} */ c) {
 /** The list, or the reason there is none. @param {Cabinet} c */
 function draw(c) {
   if (!c.loaded) return;
-  const { list, header } = c.ui;
+  const { list, header, count } = c.ui;
   const shown = visibleMedicines(c.meds, c.view);
+  count.textContent = `${shown.length} of ${c.meds.length}`;
   header.querySelector(".kp-page-header__description")?.replaceChildren(`${c.meds.length} ${c.meds.length === 1 ? "medicine" : "medicines"} at home. Switch one off to hide its schedule everywhere.`);
   if (!c.meds.length) return list.state("empty", { title: "Your cabinet is empty", text: "Add the first medicine to see it here.", action: linkButton("Add your first medicine", "/medicine/new", "kp-button--primary") });
   if (!shown.length) {
@@ -52,7 +56,7 @@ function draw(c) {
   }
   const on = { setActive: (/** @type {any} */ m, /** @type {boolean} */ v) => setActive(c, m, v), step: c.stock.step };
   redraw(list.data, () => {
-    list.data.replaceChildren(h("ul", { class: "mc-list mc-list--rows" }, ...shown.map((m) => medicineRow(m, on))));
+    list.data.replaceChildren(h("ul", { class: "kp-list", "aria-label": "Medicines" }, ...shown.map((m) => medicineRow(m, on))));
     wire(list.data);
   });
   list.state("ready");
@@ -110,10 +114,12 @@ export function mount(root) {
     syncUrl(view);
     draw(c);
   });
+  const detachTools = attachToolbars(c.ui.tools);
   void load(c);
   const stop = onTick(() => (c.stock.busy() ? undefined : load(c)));
   return () => {
     c.alive = false;
+    detachTools();
     stop();
     c.stock.stop();
   };

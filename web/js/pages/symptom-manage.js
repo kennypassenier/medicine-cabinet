@@ -4,13 +4,13 @@
 
 import { h } from "../dom.js";
 import { chips } from "../controls.js";
-import { drawEntityTable, rowButton } from "../entity-table.js";
+import { drawEntityTable, rowActions, rowButton } from "../entity-table.js";
 import { button, dataCard } from "../ui.js";
 import { addCategory, addSymptom, deleteCategory, deleteSymptom, editCategory, editSymptom } from "./symptom-actions.js";
 
 /** Both buttons of a managed row, in one fixed cell. @param {string} noun @param {string} name @param {() => void} edit @param {() => void} del @param {string} editLabel */
 const actions = (noun, name, edit, del, editLabel) =>
-  h("span", { class: "mc-actions__pair" },
+  rowActions(
     rowButton({ label: editLabel, aria: `${editLabel} ${noun} ${name}`, onClick: edit }),
     rowButton({ label: "Delete", aria: `Delete ${noun} ${name}`, look: "kp-button--destructive", onClick: del }));
 
@@ -37,15 +37,17 @@ function buildManager(reload) {
   /** @type {Manager} */
   const m = {
     data: { symptoms: [], categories: [] }, filter: "all", detach: [], reload,
-    cats: dataCard({ id: "cats", title: "Categories", description: "Pick one to filter the symptoms. Rename or delete the one you picked.", className: "mc-manage__cats", onRetry: () => reload(), actions: [button("Add category", { onClick: () => then(m, addCategory()) })] }),
-    syms: dataCard({ id: "syms", title: "Symptoms", description: "Everything you can search for or list on a medicine.", className: "mc-manage__syms", onRetry: () => reload(), actions: [button("Add symptom", { look: "kp-button--primary", onClick: () => then(m, addSymptom(m.data.categories, /^\d+$/.test(m.filter) ? Number(m.filter) : null)) })] }),
-    symHost: h("div", { class: "mc-manage__table" }),
-    pillHost: h("div", { class: "mc-manage__filter" }),
-    pickedLine: h("p", { class: "mc-manage__picked" }),
-    catButtons: h("div", { class: "mc-manage__catbuttons" }),
+    cats: dataCard({ id: "cats", title: "Categories", description: "Pick one to filter the symptoms. Rename or delete the one you picked.", onRetry: () => reload(), actions: [button("Add category", { onClick: () => then(m, addCategory()) })] }),
+    syms: dataCard({ id: "syms", title: "Symptoms", description: "Everything you can search for or list on a medicine.", onRetry: () => reload(), actions: [button("Add symptom", { look: "kp-button--primary", onClick: () => then(m, addSymptom(m.data.categories, /^\d+$/.test(m.filter) ? Number(m.filter) : null)) })] }),
+    symHost: h("div"),
+    pillHost: h("div"),
+    pickedLine: h("p", { class: "kp-text-muted kp-m-0" }),
+    catButtons: h("div", { class: "kp-row" }),
   };
+  m.cats.card.dataset.kpSpan = "4";
+  m.syms.card.dataset.kpSpan = "8";
   m.syms.data.append(m.symHost);
-  m.cats.data.append(m.pillHost, m.pickedLine, m.catButtons);
+  m.cats.data.append(h("div", { class: "kp-stack" }, m.pillHost, m.pickedLine, m.catButtons));
   return m;
 }
 
@@ -55,8 +57,8 @@ function drawCategoryButtons(m) {
   const why = c ? "" : "Pick a category above first.";
   m.pickedLine.textContent = c ? `${c.name}: ${c.symptoms} ${c.symptoms === 1 ? "symptom" : "symptoms"}.` : m.filter === "none" ? "These symptoms have no category yet." : "Showing every symptom.";
   m.catButtons.replaceChildren(
-    button("Rename", { onClick: () => c && then(m, editCategory(c)), title: why, label: c ? `Rename category ${c.name}` : "Rename category" }),
-    button("Delete", { look: "kp-button--destructive", onClick: () => c && then(m, deleteCategory(c)), title: why, label: c ? `Delete category ${c.name}` : "Delete category" }));
+    button("Rename", { look: "kp-flex-1", onClick: () => c && then(m, editCategory(c)), title: why, label: c ? `Rename category ${c.name}` : "Rename category" }),
+    button("Delete", { look: "kp-button--destructive kp-flex-1", onClick: () => c && then(m, deleteCategory(c)), title: why, label: c ? `Delete category ${c.name}` : "Delete category" }));
   for (const b of m.catButtons.children) { b.toggleAttribute("disabled", !c); }
 }
 
@@ -88,7 +90,7 @@ function drawSymptoms(m) {
 export function createManager({ reload }) {
   const m = buildManager(reload);
   return {
-    el: h("div", { class: "mc-manage" }, m.cats.card, m.syms.card),
+    cards: [m.cats.card, m.syms.card],
     /** @param {{ symptoms: any[], categories: any[] }} next */
     draw(next) {
       m.data = next;

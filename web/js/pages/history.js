@@ -21,13 +21,14 @@ function planned(i) {
 /** @param {any} i @param {Map<number, any>} meds @param {(i: any) => void} undo */
 function row(i, meds, undo) {
   const unit = meds.get(i.medicine_id)?.stock_unit ?? "";
-  return h("li", { class: "mc-hist" },
-    h("span", { class: "mc-hist__time" }, i.taken_at.slice(11, 16)),
-    h("div", { class: "mc-hist__main" },
-      h("span", { class: "mc-dose__name" }, i.medicine_name),
-      h("span", { class: "mc-dose__meta" }, [i.status === "taken" ? qty(i.dose, unit) : null, planned(i), i.note].filter(Boolean).join(" · "))),
-    h("span", { class: "mc-hist__state" }, i.status === "taken" ? badge("kp-badge--success", "Taken") : badge("", "Skipped")),
-    button("Undo", { look: "kp-button--ghost", key: `undo-${i.id}`, onClick: () => undo(i), label: `Undo ${i.medicine_name} at ${i.taken_at.slice(11, 16)}` }));
+  const time = i.taken_at.slice(11, 16);
+  return h("li", null,
+    h("div", { class: "kp-stack kp-gap-xs" },
+      h("p", { class: "kp-m-0" }, h("strong", null, time), " · ", i.medicine_name),
+      h("div", { class: "kp-row" },
+        i.status === "taken" ? badge("kp-badge--success", "Taken") : badge("", "Skipped"),
+        h("span", { class: "kp-text-muted" }, [i.status === "taken" ? qty(i.dose, unit) : null, planned(i), i.note].filter(Boolean).join(" · ")))),
+    h("div", { class: "kp-row-actions" }, button("Undo", { look: "kp-button--ghost", key: `undo-${i.id}`, onClick: () => undo(i), label: `Undo ${i.medicine_name} at ${time}` })));
 }
 
 /**
@@ -40,20 +41,22 @@ function row(i, meds, undo) {
 
 /** Build the page skeleton into `root`. @param {HTMLElement} root @param {{ reload: () => void, more: () => void }} on */
 function buildLayout(root, on) {
-  const filterSlot = h("div", { class: "mc-filters" });
+  const filterSlot = h("div", { class: "kp-toolbar__group", role: "group", "aria-label": "Show" });
+  const tools = h("div", { class: "kp-toolbar kp-ops__toolbar", role: "group", "aria-label": "Filter the log" }, h("div", { class: "kp-toolbar__filters" }, filterSlot));
   const card = dataCard({ id: "hist", title: "Intake log", description: "Everything you took or skipped. Undo removes an entry and gives the stock back.", onRetry: on.reload });
-  const more = button("Show earlier entries", { onClick: on.more });
+  card.card.dataset.kpSpan = "12";
+  const more = button("Show earlier entries", { look: "kp-self-start", onClick: on.more });
   more.hidden = true;
-  root.append(pageHeader({ title: "History", description: "What you took, when, and what you skipped." }), filterSlot, card.card, more);
+  root.append(pageHeader({ title: "History", description: "What you took, when, and what you skipped." }), tools, h("div", { class: "kp-ops__body" }, card.card));
   card.state("loading");
   return { filterSlot, card, more };
 }
 
 /** One day of the log: its heading and entries. @param {string} day @param {any[]} list @param {Map<number, any>} meds @param {(i: any) => void} undo */
 function daySection(day, list, meds, undo) {
-  return h("section", { class: "mc-slot", "aria-label": friendlyDate(day) },
-    h("h3", { class: "mc-slot__time mc-slot__time--day" }, friendlyDate(day), h("span", { class: "mc-slot__count" }, `${list.length} ${list.length === 1 ? "entry" : "entries"}`)),
-    h("ul", { class: "mc-slot__list" }, ...list.map((i) => row(i, meds, undo))));
+  return h("section", { class: "kp-stack kp-gap-sm", "aria-label": friendlyDate(day) },
+    h("h3", { class: "kp-m-0" }, friendlyDate(day), " ", h("span", { class: "kp-text-muted" }, `· ${list.length} ${list.length === 1 ? "entry" : "entries"}`)),
+    h("ul", { class: "kp-action-list" }, ...list.map((i) => row(i, meds, undo))));
 }
 
 /** @param {HistoryPage} p */
@@ -62,7 +65,7 @@ function draw(p) {
   const { filterSlot, card, more } = p.ui;
   const { items, filter } = p;
   const shown = items.filter((i) => filter === "all" || i.status === filter);
-  filterSlot.replaceChildren(chips({ label: "Show", value: filter, options: Object.entries(FILTERS).map(([k, t]) => [k, t, k === "all" ? items.length : items.filter((i) => i.status === k).length]), onChange: (v) => { p.filter = /** @type {keyof typeof FILTERS} */ (v); draw(p); } }));
+  filterSlot.replaceChildren(h("b", { class: "kp-toolbar__label" }, "Show"), chips({ label: "Show", value: filter, options: Object.entries(FILTERS).map(([k, t]) => [k, t, k === "all" ? items.length : items.filter((i) => i.status === k).length]), onChange: (v) => { p.filter = /** @type {keyof typeof FILTERS} */ (v); draw(p); } }));
   more.hidden = items.length < p.limit;
   if (!shown.length) {
     return card.state("empty", items.length
@@ -70,7 +73,7 @@ function draw(p) {
       : { title: "Nothing logged yet", text: "Doses you take or skip on Today show up here.", action: linkButton("Go to Today", "/") });
   }
   const days = [...new Set(shown.map((i) => i.taken_at.slice(0, 10)))];
-  redraw(card.data, () => card.data.replaceChildren(...days.map((d) => daySection(d, shown.filter((i) => i.taken_at.startsWith(d)), p.meds, (i) => undo(p, i)))));
+  redraw(card.data, () => card.data.replaceChildren(h("div", { class: "kp-stack kp-gap-lg" }, ...days.map((d) => daySection(d, shown.filter((i) => i.taken_at.startsWith(d)), p.meds, (i) => undo(p, i))), more)));
   card.state("ready");
 }
 

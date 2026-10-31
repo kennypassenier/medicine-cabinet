@@ -10,7 +10,8 @@ let serial = 0;
 
 /**
  * One field row of the dialog.
- * @param {{ name: string, label: string, value?: string, hint?: string, required?: boolean, list?: string[], choices?: [string, string][] }} f
+ * `choices` are pills; with `none` the chosen pill can be pressed off again (nothing chosen is "").
+ * @param {{ name: string, label: string, value?: string, hint?: string, required?: boolean, list?: string[], choices?: [string, string][], none?: boolean, autofocus?: boolean }} f
  * @param {string} uid
  * @returns {{ row: HTMLElement, read: () => string }}
  */
@@ -20,11 +21,11 @@ function fieldRow(f, uid) {
   /** @type {() => string} */
   let read;
   if (f.choices) {
-    let chosen = f.value ?? f.choices[0][0];
-    control = chips({ label: f.label, options: f.choices, value: chosen, onChange: (v) => { chosen = v; } });
+    let chosen = f.value ?? (f.none ? "" : f.choices[0][0]);
+    control = chips({ label: f.label, options: f.choices, value: chosen, none: f.none, onChange: (v) => { chosen = v; } });
     read = () => chosen;
   } else {
-    const input = /** @type {HTMLInputElement} */ (h("input", { class: "kp-field__input", type: "text", id, name: f.name, required: f.required, autocomplete: "off", maxlength: 80, list: f.list ? `${id}-list` : null, value: f.value ?? "" }));
+    const input = /** @type {HTMLInputElement} */ (h("input", { class: "kp-field__input", type: "text", id, name: f.name, required: f.required, autofocus: f.autofocus, autocomplete: "off", maxlength: 80, list: f.list ? `${id}-list` : null, value: f.value ?? "" }));
     control = f.list ? h("div", null, input, h("datalist", { id: `${id}-list` }, ...f.list.map((u) => h("option", { value: u })))) : input;
     read = () => input.value.trim();
   }
@@ -40,11 +41,11 @@ function buildDialog(uid, { title, description, accept }, fieldRows) {
   const alert = h("div", { class: "kp-alert kp-alert--destructive", role: "alert", hidden: true });
   const cancel = h("button", { type: "button", class: "kp-button" }, "Cancel");
   const submit = h("button", { type: "submit", class: "kp-button kp-button--primary" }, accept);
-  const form = h("form", { class: "mc-dialog__form", novalidate: true },
+  const form = h("form", { class: "kp-stack", novalidate: true },
     h("div", { class: "kp-formgrid" }, ...fieldRows),
     alert,
     h("div", { class: "kp-dialog__actions" }, cancel, submit));
-  const dialog = /** @type {HTMLDialogElement} */ (h("dialog", { class: "kp-dialog mc-dialog mc-dialog--form", "aria-labelledby": `${uid}-t`, "aria-describedby": `${uid}-d` },
+  const dialog = /** @type {HTMLDialogElement} */ (h("dialog", { class: "kp-dialog kp-dialog--narrow", "aria-labelledby": `${uid}-t`, "aria-describedby": `${uid}-d` },
     h("h2", { class: "kp-dialog__title", id: `${uid}-t` }, title),
     h("p", { class: "kp-dialog__description", id: `${uid}-d` }, description),
     form));
@@ -59,7 +60,7 @@ function buildDialog(uid, { title, description, accept }, fieldRows) {
 export function formDialog({ title, description, accept, fields, save }) {
   return new Promise((resolve) => {
     const uid = `fd${++serial}`;
-    const rows = fields.map((f) => ({ f, ...fieldRow(f, uid) }));
+    const rows = fields.map((f, i) => ({ f, ...fieldRow({ ...f, autofocus: i === 0 }, uid) }));
     const { dialog, form, alert, cancel, submit } = buildDialog(uid, { title, description, accept }, rows.map((r) => r.row));
     let saved = false;
     /** @param {string} text */
@@ -86,6 +87,5 @@ export function formDialog({ title, description, accept, fields, save }) {
     dialog.addEventListener("close", () => { dialog.remove(); resolve(saved); });
     document.body.append(dialog);
     dialog.showModal();
-    dialog.querySelector("input")?.focus();
   });
 }

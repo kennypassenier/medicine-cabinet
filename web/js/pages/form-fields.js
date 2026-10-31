@@ -45,9 +45,9 @@ export function dateValue(scope, name) {
   return input instanceof HTMLInputElement ? input.dataset.kpDateValue || null : null;
 }
 
-/** A card section of a form: heading, one sentence, then its rows. @param {{ id: string, title: string, description: string, rows: (HTMLElement | null)[], className?: string }} s */
-export function section({ id, title, description, rows, className = "" }) {
-  return h("section", { class: `kp-card ${className}`.trim(), "aria-labelledby": `${id}-t` },
+/** A card section of a form: heading, one sentence, then its rows; `span` is its width in the page's 12 columns. @param {{ id: string, title: string, description: string, rows: (HTMLElement | null)[], span?: number }} s */
+export function section({ id, title, description, rows, span = 6 }) {
+  return h("section", { class: "kp-card", "data-kp-span": span, "aria-labelledby": `${id}-t` },
     h("div", { class: "kp-card__header" }, h("h2", { class: "kp-card__title", id: `${id}-t` }, title)),
     h("p", { class: "kp-card__body" }, description),
     h("div", { class: "kp-formgrid" }, ...rows.filter(Boolean)));

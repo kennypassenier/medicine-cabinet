@@ -2,7 +2,7 @@
 // is allowed, explain a refusal in plain words, offer an explicit override,
 // and offer Undo after the dose is logged.
 
-import { undoToast } from "/static/kp/js/undo-toast.js";
+import { undoToast } from "/static/kp/dist/kp-themes.min.js";
 import { api } from "./api.js";
 import { h } from "./dom.js";
 import { ask } from "./dialogs.js";

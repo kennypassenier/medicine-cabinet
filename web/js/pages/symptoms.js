@@ -14,13 +14,13 @@ import { createManager } from "./symptom-manage.js";
 const TYPING_MS = 250;
 const NO_CATEGORY = "Other";
 
-/** The suggestion chips as form-grid rows: the category in the label column, its symptoms as chips. */
+/** The suggestion chips as form-grid rows: the category in the label column, its symptoms as chips that can be pressed off again. */
 function suggestionRows(/** @type {any[]} */ symptoms, /** @type {any[]} */ categories, /** @type {string} */ symptom, /** @type {(v: string) => void} */ pick) {
   const groups = [...categories.map((c) => [c.name, c.id]), [NO_CATEGORY, null]];
   const rows = groups.map(([name, id]) => [name, symptoms.filter((s) => s.category_id === id)]).filter(([, list]) => list.length);
   return rows.map(([name, list]) => h("div", { class: "kp-formgrid__row" },
     h("span", { class: "kp-formgrid__label" }, name),
-    h("div", { class: "kp-formgrid__control" }, chips({ label: `${name} symptoms`, value: symptom.toLowerCase(), options: list.map((/** @type {any} */ s) => [s.name, s.name, s.medicines]), onChange: pick }))));
+    h("div", { class: "kp-formgrid__control" }, chips({ label: `${name} symptoms`, none: true, value: symptom.toLowerCase(), options: list.map((/** @type {any} */ s) => [s.name, s.name, s.medicines]), onChange: pick }))));
 }
 
 /**
@@ -34,19 +34,22 @@ function suggestionRows(/** @type {any[]} */ symptoms, /** @type {any[]} */ cate
 
 /** Build the page skeleton into `root`. @param {HTMLElement} root @param {string} symptom @param {{ run: () => void, reload: () => Promise<void> }} on */
 function buildLayout(root, symptom, on) {
-  const input = /** @type {HTMLInputElement} */ (h("input", { class: "kp-field__input mc-find__input", type: "search", id: "find-q", autocomplete: "off", placeholder: "e.g. headache, fever, hay fever", value: symptom, "aria-labelledby": "find-t" }));
-  const suggest = h("div", { class: "kp-formgrid kp-formgrid--columns mc-find__chips" });
-  const box = h("section", { class: "kp-card mc-find__box", "aria-labelledby": "find-t" },
-    h("div", { class: "mc-find__ask" },
-      h("div", { class: "kp-card__header" }, h("h2", { class: "kp-card__title", id: "find-t" }, "What's bothering you?")),
-      h("p", { class: "kp-card__body" }, "Type a symptom or pick one. You see which medicine at home can help."),
-      input),
+  const input = /** @type {HTMLInputElement} */ (h("input", { class: "kp-field__input", type: "search", id: "find-q", autocomplete: "off", placeholder: "e.g. headache, fever, hay fever", value: symptom }));
+  const suggest = h("div", { class: "kp-formgrid" },
+    h("div", { class: "kp-formgrid__row" },
+      h("label", { class: "kp-formgrid__label", for: "find-q" }, "Symptom"),
+      h("div", { class: "kp-formgrid__control kp-formgrid__fill" }, input)));
+  const box = h("section", { class: "kp-card", "aria-labelledby": "find-t", "data-kp-span": "12" },
+    h("div", { class: "kp-card__header" }, h("h2", { class: "kp-card__title", id: "find-t" }, "What's bothering you?")),
+    h("p", { class: "kp-card__body" }, "Type a symptom or pick one. You see which medicine at home can help."),
     suggest);
-  const have = dataCard({ id: "have", title: "You have these", description: "In stock, switched on and in date.", className: "mc-find__have", onRetry: on.run });
-  const lack = dataCard({ id: "lack", title: "Not available", description: "They match, but cannot be used right now.", className: "mc-find__lack", onRetry: on.run });
+  const have = dataCard({ id: "have", title: "You have these", description: "In stock, switched on and in date.", onRetry: on.run });
+  const lack = dataCard({ id: "lack", title: "Not available", description: "They match, but cannot be used right now.", onRetry: on.run });
+  have.card.dataset.kpSpan = "7";
+  lack.card.dataset.kpSpan = "5";
   const manager = createManager({ reload: on.reload });
   const head = pageHeader({ title: "Symptoms", description: "Say what is wrong and see which medicine in your cabinet can help. Keep your symptoms and their categories tidy below." });
-  root.append(head, box, h("div", { class: "mc-find" }, have.card, lack.card), manager.el);
+  root.append(head, h("div", { class: "kp-ops__body" }, box, have.card, lack.card, ...manager.cards));
   return { input, suggest, have, lack, manager };
 }
 
@@ -56,7 +59,7 @@ function idle(/** @type {Finder} */ s) {
 }
 
 function drawChips(/** @type {Finder} */ s) {
-  s.ui.suggest.replaceChildren(...suggestionRows(s.known.symptoms, s.known.categories, s.symptom, (v) => pick(s, v)));
+  s.ui.suggest.replaceChildren(s.ui.suggest.firstElementChild, ...suggestionRows(s.known.symptoms, s.known.categories, s.symptom, (v) => pick(s, v)));
 }
 
 /** @param {Finder} s @param {string} v */
@@ -70,7 +73,7 @@ function pick(s, v) {
 /** @param {ReturnType<typeof dataCard>} card @param {any[]} list @param {boolean} usable @param {object} empty @param {() => void} again */
 function fill(card, list, usable, empty, again) {
   if (!list.length) return card.state("empty", empty);
-  card.data.replaceChildren(h("ul", { class: "mc-list mc-list--rows" }, ...list.map((m) => resultRow(m, { usable, take: (x) => takeOne(x, again) }))));
+  card.data.replaceChildren(h("ul", { class: "kp-list", "aria-label": card.card.querySelector(".kp-card__title")?.textContent ?? "Medicines" }, ...list.map((m) => resultRow(m, { usable, take: (x) => takeOne(x, again) }))));
   card.state("ready");
 }
 

@@ -13,24 +13,25 @@ export function blockedReason(m) {
 }
 
 /**
+ * One list row per medicine: identity, status badges and the button in the stepper column.
  * @param {HTMLElement} into
  * @param {any[]} meds
  * @param {(m: any) => void} take
  */
 export function renderAsNeeded(into, meds, take) {
-  into.replaceChildren(h("ul", { class: "mc-list" }, ...meds.map((m) => {
+  into.replaceChildren(h("ul", { class: "kp-list", "aria-label": "Medicines taken when needed" }, ...meds.map((m) => {
     const why = blockedReason(m);
-    const btn = button("I took one", { look: why ? "" : "kp-button--primary", key: `need-${m.id}`, onClick: () => take(m), label: `I took one ${m.name}` });
+    const btn = button("I took one", { look: `kp-w-full ${why ? "" : "kp-button--primary"}`.trim(), key: `need-${m.id}`, onClick: () => take(m), label: `I took one ${m.name}` });
     if (why) {
       btn.setAttribute("aria-disabled", "true");
       btn.setAttribute("data-kp-disabled-reason", why);
       btn.disabled = true;
     }
-    return h("li", { class: "mc-need" },
-      h("div", { class: "mc-need__main" },
-        h("a", { class: "mc-need__name", href: `/medicine/${m.id}` }, m.name),
-        h("span", { class: "mc-need__meta" }, [m.purpose, `${qty(m.stock, m.stock_unit)} left`].filter(Boolean).join(" · "))),
-      btn,
-      h("span", { class: "mc-need__badges" }, ...statusBadges(m)));
+    return h("li", { class: "kp-listrow" },
+      h("div", { class: "kp-listrow__identity" },
+        h("a", { class: "kp-listrow__name", href: `/medicine/${m.id}` }, m.name),
+        h("span", { class: "kp-listrow__meta" }, [m.purpose, `${qty(m.stock, m.stock_unit)} left`].filter(Boolean).join(" · "))),
+      h("div", { class: "kp-listrow__status" }, h("div", { class: "kp-badges" }, ...statusBadges(m))),
+      h("div", { class: "kp-listrow__stepper" }, btn));
   })));
 }

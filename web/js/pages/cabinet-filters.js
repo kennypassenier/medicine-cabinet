@@ -53,7 +53,7 @@ export function visibleMedicines(meds, view) {
  * @param {() => void} onChange runs after the view changed, the URL is already updated
  */
 export function drawFilterChips(slots, meds, view, onChange) {
-  slots.filterSlot.replaceChildren(h("span", { class: "kp-field__label" }, "Show"), chips({
+  slots.filterSlot.replaceChildren(h("b", { class: "kp-toolbar__label" }, "Show"), chips({
     label: "Show",
     value: view.filter,
     options: Object.entries(FILTERS).map(([k, [label, fn]]) => [k, label, meds.filter(fn).length]),
@@ -71,7 +71,7 @@ function drawFormChips(/** @type {HTMLElement} */ formSlot, /** @type {any[]} */
   const names = [...new Map(meds.filter((m) => m.form_id).map((m) => [String(m.form_id), m.form])).entries()].sort((a, b) => a[1].localeCompare(b[1]));
   if (view.formFilter && !names.some(([id]) => id === view.formFilter)) view.formFilter = "";
   formSlot.hidden = names.length === 0;
-  formSlot.replaceChildren(h("span", { class: "kp-field__label" }, "Form"), chips({
+  formSlot.replaceChildren(h("b", { class: "kp-toolbar__label" }, "Form"), chips({
     label: "Form",
     value: view.formFilter,
     options: [["", "Any form", meds.length], ...names.map(([id, name]) => /** @type {[string, string, number]} */ ([id, name, meds.filter((m) => String(m.form_id) === id).length]))],

@@ -5,7 +5,7 @@ import { h } from "../dom.js";
 import { daysLabel, formatDate } from "../clock.js";
 import { duration } from "../clock.js";
 import { stepper, toggle } from "../controls.js";
-import { badge, statusBadges } from "../format.js";
+import { statusBadges } from "../format.js";
 
 /** One line saying when a medicine is taken. @param {any} m */
 export function scheduleLine(m) {
@@ -21,27 +21,28 @@ export function scheduleLine(m) {
 
 /** The facts line under the name. @param {any} m */
 function facts(m) {
-  const parts = [m.strength, m.purpose].filter(Boolean);
+  const parts = [m.form, m.strength, m.purpose].filter(Boolean);
   if (m.course_ends_on) parts.push(`course until ${formatDate(m.course_ends_on)}`);
   return parts.join(" · ");
 }
 
 /**
+ * One row of the package's list: identity, status, stock stepper and the on/off switch.
  * @param {any} m
  * @param {{ setActive: (m: any, on: boolean) => void, step: (m: any, v: number) => void }} on
  */
 export function medicineRow(m, on) {
-  const chips = m.symptoms.length
-    ? h("ul", { class: "kp-tag-list mc-row__symptoms", "aria-label": "Helps with" }, ...m.symptoms.map((/** @type {string} */ s) => h("li", { class: "kp-tag" }, h("span", null, s))))
+  const symptoms = m.symptoms.length
+    ? h("ul", { class: "kp-tag-list", "aria-label": "Helps with" }, ...m.symptoms.map((/** @type {string} */ s) => h("li", { class: "kp-tag" }, h("span", null, s))))
     : null;
-  return h("li", { class: "mc-row", "data-off": String(!m.active) },
-    h("div", { class: "mc-row__main" },
-      h("a", { class: "mc-row__name", href: `/medicine/${m.id}`, "data-key": `open-${m.id}` }, m.name),
-      h("span", { class: "mc-row__facts" }, m.form ? badge("", m.form, "Form") : null, facts(m) ? h("span", null, facts(m)) : null),
-      chips),
-    h("div", { class: "mc-row__when" },
-      h("span", { class: "mc-row__schedule" }, scheduleLine(m)),
-      h("span", { class: "mc-row__badges" }, ...statusBadges(m))),
-    h("div", { class: "mc-row__stock" }, stepper({ label: `Stock of ${m.name}`, value: m.stock, min: 0, unit: m.stock_unit, key: `stock-${m.id}`, onChange: (v) => on.step(m, v) })),
-    h("div", { class: "mc-row__switch" }, toggle({ label: "Active", name: `${m.name} active`, checked: m.active, key: `switch-${m.id}`, onChange: (checked) => on.setActive(m, checked) })));
+  return h("li", { class: `kp-listrow${m.active ? "" : " kp-listrow--muted"}` },
+    h("div", { class: "kp-listrow__identity" },
+      h("a", { class: "kp-listrow__name", href: `/medicine/${m.id}`, "data-key": `open-${m.id}` }, m.name),
+      facts(m) ? h("span", { class: "kp-listrow__meta" }, facts(m)) : null,
+      symptoms),
+    h("div", { class: "kp-listrow__status" },
+      h("span", { class: "kp-listrow__meta" }, scheduleLine(m)),
+      h("div", { class: "kp-badges" }, ...statusBadges(m))),
+    h("div", { class: "kp-listrow__stepper" }, stepper({ label: `Stock of ${m.name}`, value: m.stock, min: 0, unit: m.stock_unit, key: `stock-${m.id}`, onChange: (v) => on.step(m, v) })),
+    h("div", { class: "kp-listrow__switch" }, toggle({ label: "Active", name: `${m.name} active`, checked: m.active, key: `switch-${m.id}`, onChange: (checked) => on.setActive(m, checked) })));
 }

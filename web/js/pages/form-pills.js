@@ -1,5 +1,5 @@
-// The "Form" field of the medicine form: one pill per form, exactly one
-// chosen (or "No form"), plus the way to manage the list. Choosing a form
+// The "Form" field of the medicine form: one pill per form, at most one
+// chosen (a chosen pill pressed again means no form), plus the way to manage the list. Choosing a form
 // fills the stock unit while the unit is empty or was filled this way.
 
 import { h } from "../dom.js";
@@ -15,14 +15,15 @@ import { openFormsManager } from "./forms-manage.js";
 export function formPills({ forms, formId, onPick, onReloaded, reload }) {
   let list = forms;
   let chosen = formId;
-  const slot = h("div", { class: "mc-formpills" });
+  const slot = h("div");
 
   function draw() {
     if (chosen !== null && !list.some((f) => f.id === chosen)) chosen = null;
     slot.replaceChildren(chips({
       label: "Form",
       value: chosen === null ? "" : String(chosen),
-      options: [["", "No form"], ...list.map((f) => /** @type {[string, string]} */ ([String(f.id), f.name]))],
+      none: true,
+      options: list.map((f) => /** @type {[string, string]} */ ([String(f.id), f.name])),
       onChange: (v) => {
         chosen = v ? Number(v) : null;
         onPick(list.find((f) => f.id === chosen) ?? null);

@@ -2,13 +2,12 @@
 // stock, dates and delete. The unit field and the "when" slot keep a little
 // state of their own, so they come as small controllers.
 
-import { attachWeekdays } from "/static/kp/js/weekdays.js";
-import { attachTimes } from "/static/kp/js/timefield.js";
+import { attachWeekdays, attachTimes, attachRowEditors } from "/static/kp/dist/kp-themes.min.js";
 import { h } from "../dom.js";
 import { stepper, wire } from "../controls.js";
 import { button } from "../ui.js";
 import { date, row, section, text } from "./form-fields.js";
-import { scheduleSection } from "./form-schedule.js";
+import { readSlots, scheduleSection } from "./form-schedule.js";
 import { COMMON_UNITS } from "./forms-manage.js";
 
 /**
@@ -41,7 +40,7 @@ export function unitField(med, model, forms) {
 
 /** @param {any | null} med @param {HTMLElement} formRow the form pills row */
 export function aboutSection(med, formRow) {
-  return section({ id: "about", title: "About", description: "What it is and how it comes.", className: "mc-form__about", rows: [
+  return section({ id: "about", title: "About", description: "What it is and how it comes.", rows: [
     text({ name: "name", label: "Name", value: med?.name, required: true, maxlength: 80, placeholder: "e.g. Paracetamol" }),
     text({ name: "purpose", label: "Purpose", value: med?.purpose, hint: "In your own words, e.g. “Pain and fever”." }),
     formRow,
@@ -52,30 +51,36 @@ export function aboutSection(med, formRow) {
 
 /** @param {HTMLElement} symptomRow */
 export const helpsSection = (symptomRow) =>
-  section({ id: "helps", title: "Symptoms", description: "What you take it for. These power the Symptoms page.", className: "mc-form__helps", rows: [symptomRow] });
+  section({ id: "helps", title: "Symptoms", description: "What you take it for. These power the Symptoms page.", rows: [symptomRow] });
 
 /**
- * The "when to take it" card, redrawn after every structural change of the
- * schedule; its weekday and time pickers are attached anew each time.
+ * The "when to take it" card, redrawn when the as-needed switch flips; its
+ * time fields, weekday pickers, quantities and row editor are attached anew each time.
  * @param {Parameters<typeof scheduleSection>[0]} model
  */
 export function createWhenSlot(model) {
-  const el = h("div", { class: "mc-form__when" });
+  const live = { editor: /** @type {HTMLElement | null} */ (null) };
+  /** The card on the page now; a redraw swaps it for the new one, so the card stays a direct child of the page's grid. @type {HTMLElement | null} */
+  let card = null;
   /** @type {(() => void)[]} */
   let detach = [];
   const stop = () => detach.forEach((d) => d());
   const draw = () => {
     stop();
-    el.replaceChildren(scheduleSection(model, draw));
-    wire(el);
-    detach = [attachWeekdays(el), attachTimes(el)];
+    const next = scheduleSection(model, draw, live);
+    card?.replaceWith(next);
+    card = next;
+    wire(next);
+    detach = [attachWeekdays(next), attachTimes(next), attachRowEditors(next)];
   };
-  return { el, draw, stop };
+  /** The slots to save: what the editor's rows hold now. */
+  const read = () => (live.editor ? readSlots(live.editor) : model.slots);
+  return { get el() { return /** @type {HTMLElement} */ (card); }, draw, stop, read };
 }
 
 /** @param {any | null} med @param {{ unit: string }} model @param {HTMLElement} unitRow */
 export function stockSection(med, model, unitRow) {
-  return section({ id: "stock", title: "Stock", description: "What is left, and when to be warned.", className: "mc-form__stock", rows: [
+  return section({ id: "stock", title: "Stock", description: "What is left, and when to be warned.", rows: [
     row({ label: "In stock", control: stepper({ label: "Stock", value: med?.stock ?? 0, min: 0, step: 1, unit: model.unit }), hint: "How many you have now." }),
     unitRow,
     row({ label: "Low-stock warning", control: stepper({ label: "Warn when stock is at or below", value: med?.low_stock_at ?? 0, min: 0, step: 1, unit: model.unit }), hint: "Warn at or below this number. 0 means no warning." }),
@@ -84,7 +89,7 @@ export function stockSection(med, model, unitRow) {
 
 /** @param {any | null} med */
 export function datesSection(med) {
-  return section({ id: "dates", title: "Dates", description: "Expiry, opening and the end of a course. All optional.", className: "mc-form__dates", rows: [
+  return section({ id: "dates", title: "Dates", description: "Expiry, opening and the end of a course. All optional.", span: 12, rows: [
     date({ name: "expires_on", label: "Expires on", value: med?.expires_on, hint: "Printed on the box." }),
     date({ name: "opened_on", label: "Opened on", value: med?.opened_on, hint: "For drops, syrups and creams." }),
     row({ label: "Good after opening", control: stepper({ label: "Good for days after opening", value: med?.shelf_life_days ?? 0, min: 0, step: 1, unit: "days" }), hint: "0 means it keeps until the printed date." }),
@@ -94,6 +99,6 @@ export function datesSection(med) {
 
 /** The delete card of an existing medicine. @param {any} med @param {() => void} onDelete */
 export function dangerSection(med, onDelete) {
-  return section({ id: "danger", title: "Delete", description: "Removes this medicine and its schedule. Switch it off in the cabinet instead to keep its history.", className: "mc-form__danger", rows: [
+  return section({ id: "danger", title: "Delete", description: "Removes this medicine and its schedule. Switch it off in the cabinet instead to keep its history.", span: 12, rows: [
     row({ label: "Permanently", control: button(`Delete ${med.name}`, { look: "kp-button--destructive", onClick: onDelete }) })] });
 }

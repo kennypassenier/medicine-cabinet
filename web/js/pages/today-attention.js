@@ -1,6 +1,6 @@
 // The attention band: one alert per problem, worst first, each with its fix.
 
-import { setAttention } from "/static/kp/js/attention.js";
+import { setAttention } from "/static/kp/dist/kp-themes.min.js";
 import { h } from "../dom.js";
 import { addStock } from "../stock.js";
 import { humanize } from "../format.js";
@@ -15,25 +15,17 @@ const TITLE = {
   course_ends_soon: "course ends soon",
 };
 
-/** How many problems show before "Show N more": the worst come first, the rest wait one tap away. */
+/** How many problems show before "Show N more": the package folds the rest, worst first. */
 const SHOWN = 3;
 
 /**
- * @param {HTMLElement} wrap the element made by attentionBand()
+ * @param {HTMLElement} band the element made by attentionBand()
  * @param {any[]} items the API's attention list
  * @param {Map<number, any>} meds
  * @param {() => void} reload
  */
-export function renderAttention(wrap, items, meds, reload) {
-  const band = /** @type {HTMLElement} */ (wrap.querySelector(".kp-attention"));
-  const more = /** @type {HTMLButtonElement} */ (wrap.querySelector(".mc-attention__more"));
-  const expanded = wrap.dataset.expanded === "1";
-  const worst = [...items].sort((a, b) => rank(a) - rank(b));
-  const shown = expanded ? worst : worst.slice(0, SHOWN);
-  more.hidden = worst.length <= SHOWN;
-  more.textContent = expanded ? "Show fewer" : `Show ${worst.length - SHOWN} more`;
-  more.setAttribute("aria-expanded", String(expanded));
-  setAttention(band, shown.map((a) => {
+export function renderAttention(band, items, meds, reload) {
+  setAttention(band, items.map((a) => {
     const med = meds.get(a.medicine_id);
     const stock = a.kind === "out_of_stock" || a.kind === "low_stock";
     return {
@@ -48,16 +40,7 @@ export function renderAttention(wrap, items, meds, reload) {
   }));
 }
 
-const rank = (/** @type {any} */ a) => ["critical", "warning", "info"].indexOf(SEVERITY[/** @type {keyof typeof SEVERITY} */ (a.kind)] ?? "info");
-
-/** The band with its "show more" button; `reload` redraws after the button is pressed. @param {() => void} redraw */
-export function attentionBand(redraw) {
-  const more = h("button", { type: "button", class: "kp-button kp-button--ghost mc-attention__more", hidden: true });
-  const wrap = h("div", { class: "mc-today__attention" },
-    h("div", { class: "kp-attention", role: "region", "aria-label": "Needs attention" }), more);
-  more.addEventListener("click", () => {
-    wrap.dataset.expanded = wrap.dataset.expanded === "1" ? "0" : "1";
-    redraw();
-  });
-  return wrap;
+/** The band: the package caps it at `SHOWN` problems and adds "Show N more" itself. */
+export function attentionBand() {
+  return h("div", { class: "kp-attention kp-ops__attention", role: "region", "aria-label": "Needs attention", "data-kp-attention-max": SHOWN });
 }

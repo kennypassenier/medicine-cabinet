@@ -3,15 +3,14 @@
 // cleanup. The server answers index.html for every extension-less path, so
 // a deep link (/medicine/3) lands here too.
 
-import { attachNavToggles, attachNavMenus, attachSkipLinks } from "/static/kp/js/components.js";
-import { attachThemePickers, themeMenuMarkup } from "/static/kp/js/theme-picker.js";
-import { attachTabbars, setTabbarCurrent } from "/static/kp/js/tabbar.js";
-import { attachSegmented } from "/static/kp/js/segmented.js";
-import { applyStoredCalm } from "/static/kp/js/calm.js";
-import { attachEffects } from "/static/kp/js/effects.js";
+import { attachNavToggles, attachNavMenus, attachSkipLinks } from "/static/kp/dist/kp-themes.min.js";
+import { attachThemePickers, themeMenuMarkup } from "/static/kp/dist/kp-themes.min.js";
+import { attachTabbars, setTabbarCurrent } from "/static/kp/dist/kp-themes.min.js";
+import { attachSegmented, attachAttention } from "/static/kp/dist/kp-themes.min.js";
+import { applyStoredCalm } from "/static/kp/dist/kp-themes.min.js";
 import { h } from "./dom.js";
 import { AREAS, route, tabMarkup } from "./routes.js";
-import { reportError } from "./ui.js";
+import { dataCard, linkButton, reportError } from "./ui.js";
 
 const page = /** @type {HTMLElement} */ (document.getElementById("page"));
 const nav = /** @type {HTMLElement} */ (document.getElementById("nav"));
@@ -19,8 +18,6 @@ const tabbar = /** @type {HTMLElement} */ (document.getElementById("tabbar"));
 const tools = /** @type {HTMLElement} */ (document.getElementById("tools"));
 
 applyStoredCalm();
-// The themes' pointer effects (the dark theme's cursor glow) follow the mouse only once attached.
-attachEffects(document);
 
 /** @type {() => void} */
 let cleanup = () => {};
@@ -64,10 +61,11 @@ async function render() {
   if (!location.hash) window.scrollTo({ top: 0 });
 }
 
-/** The plate for a screen that cannot be drawn at all. */
+/** The plate for a screen that cannot be drawn at all: an empty card in the page body. */
 function plate(title, text, label, href) {
-  return h("section", { class: "kp-card mc-plate" },
-    h("div", { class: "kp-empty" }, h("h1", { class: "kp-empty__title" }, title), h("p", { class: "kp-empty__body" }, text), h("a", { class: "kp-button kp-button--primary", href: label === "Reload" ? location.pathname : href }, label)));
+  const card = dataCard({ id: "plate", title });
+  card.state("empty", { title, text, action: linkButton(label, label === "Reload" ? location.pathname : href, "kp-button--primary") });
+  return h("div", { class: "kp-ops__body" }, card.card);
 }
 
 /** @param {string} path */
@@ -106,6 +104,8 @@ attachNavMenus(document);
 attachSkipLinks(document);
 // Chips and pills are drawn by the screens after load; one listener on the document wires every group.
 attachSegmented(document);
+// The attention band (its cap and "Show N more") is built by the Today screen after load.
+attachAttention(document);
 
 // Same-origin links to a screen of this app route in place; modified clicks open normally.
 document.addEventListener("click", (e) => {

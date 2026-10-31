@@ -1,35 +1,25 @@
-// A question dialog built from the package's `.kp-dialog` parts. The native
-// <dialog> traps focus, closes on Escape and returns focus to the opener;
-// focus starts on Cancel so a stray Enter never confirms something harmful.
+// A question dialog: the package's confirmation (`openConfirmation`). The native
+// <dialog> traps focus, closes on Escape and returns focus to the opener; focus
+// starts on Cancel so a stray Enter never confirms something harmful.
 
-import { h } from "./dom.js";
+import { openConfirmation } from "/static/kp/dist/kp-themes.min.js";
 
 /**
- * Ask a yes/no question.
- * @param {{ title: string, text: string | Node, accept: string, destructive?: boolean, cancel?: string }} q
+ * Ask a yes/no question. `text` may be a node (several paragraphs).
+ * @param {{ title: string, text: string | Node, accept: string, destructive?: boolean, cancel?: string, opener?: HTMLElement }} q
  * @returns {Promise<boolean>} true when accepted
  */
-export function ask({ title, text, accept, destructive = false, cancel = "Cancel" }) {
+export function ask({ title, text, accept, destructive = false, cancel = "Cancel", opener }) {
+  const from = opener ?? (document.activeElement instanceof HTMLElement ? document.activeElement : document.body);
   return new Promise((resolve) => {
-    const uid = `dlg-${Math.random().toString(36).slice(2, 8)}`;
-    const dialog = /** @type {HTMLDialogElement} */ (h("dialog", { class: "kp-dialog kp-confirm mc-dialog", "aria-labelledby": `${uid}-t`, "aria-describedby": `${uid}-d` }));
-    let answer = false;
-    const close = (/** @type {boolean} */ yes) => {
-      answer = yes;
-      dialog.close();
-    };
-    const no = h("button", { type: "button", class: "kp-button", onclick: () => close(false) }, cancel);
-    const yes = h("button", { type: "button", class: `kp-button ${destructive ? "kp-button--destructive" : "kp-button--primary"}`, onclick: () => close(true) }, accept);
-    dialog.append(
-      h("h2", { class: "kp-dialog__title", id: `${uid}-t` }, title),
-      h("div", { class: "kp-dialog__description", id: `${uid}-d` }, text),
-      h("div", { class: "kp-dialog__actions" }, no, yes));
-    dialog.addEventListener("close", () => {
-      dialog.remove();
-      resolve(answer);
+    openConfirmation(from, {
+      phrase: title,
+      description: text,
+      acceptLabel: accept,
+      acceptLook: destructive ? "destructive" : "primary",
+      strings: { confirmCancel: cancel },
+      onAccept: () => resolve(true),
+      onCancel: () => resolve(false),
     });
-    document.body.append(dialog);
-    dialog.showModal();
-    no.focus();
   });
 }
