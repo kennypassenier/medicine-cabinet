@@ -70,7 +70,7 @@ pub fn wanted_events(medicines: &[Medicine], today: Date) -> Vec<Wanted> {
             .as_deref()
             .and_then(|d| Date::parse(d).ok());
         if let Some(date) = expiry.filter(|d| within_horizon(*d, today)) {
-            let id = format!("medicine-cabinet/expiry/{}", m.id);
+            let id = format!("expiry:{}", m.id);
             out.push(all_day(
                 id,
                 format!("{} expires", m.name),
@@ -83,7 +83,7 @@ pub fn wanted_events(medicines: &[Medicine], today: Date) -> Vec<Wanted> {
             .as_deref()
             .and_then(|d| Date::parse(d).ok());
         if let Some(date) = course_end.filter(|d| within_horizon(*d, today)) {
-            let id = format!("medicine-cabinet/course/{}", m.id);
+            let id = format!("course:{}", m.id);
             out.push(all_day(
                 id,
                 format!("Last day of {}", m.name),
@@ -93,7 +93,7 @@ pub fn wanted_events(medicines: &[Medicine], today: Date) -> Vec<Wanted> {
         }
         if let Some(out_on) = run_out_date(m, today).filter(|d| within_horizon(*d, today)) {
             let date = out_on.plus_days(-REORDER_LEAD_DAYS).max(today);
-            let id = format!("medicine-cabinet/reorder/{}", m.id);
+            let id = format!("reorder:{}", m.id);
             let note = format!("{} runs out around {}.", m.name, out_on.iso());
             out.push(all_day(id, format!("Reorder {}", m.name), date, note));
         }
@@ -165,7 +165,7 @@ mod tests {
         let events = wanted_events(&[med()], today());
         let reorder = events
             .iter()
-            .find(|e| e.external_id.ends_with("reorder/3"))
+            .find(|e| e.external_id.ends_with("reorder:3"))
             .unwrap();
         assert_eq!(reorder.start, "2026-11-22");
         assert!(reorder.all_day);
@@ -180,8 +180,8 @@ mod tests {
             .into_iter()
             .map(|e| e.external_id)
             .collect();
-        assert!(ids.contains(&"medicine-cabinet/expiry/3".to_string()));
-        assert!(ids.contains(&"medicine-cabinet/course/3".to_string()));
+        assert!(ids.contains(&"expiry:3".to_string()));
+        assert!(ids.contains(&"course:3".to_string()));
     }
 
     #[test]
