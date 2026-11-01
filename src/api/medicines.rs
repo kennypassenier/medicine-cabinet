@@ -82,6 +82,19 @@ pub async fn remove(State(db): State<AppDb>, Path(id): Path<i64>) -> ApiResult<s
     Ok(Json(serde_json::json!({ "deleted": id })))
 }
 
+/// Bring back a medicine deleted in the last two weeks.
+pub async fn restore(
+    State(db): State<AppDb>,
+    Path(id): Path<i64>,
+    Query(c): Query<Clock>,
+) -> ApiResult<Medicine> {
+    let today = c.date()?;
+    db.write(move |tx| medicines::restore(tx, id)).await?;
+    db.read(move |conn| medicines::get(conn, id, today))
+        .await
+        .map(Json)
+}
+
 #[derive(Debug, Deserialize)]
 pub struct ActiveBody {
     active: bool,

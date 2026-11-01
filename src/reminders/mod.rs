@@ -82,5 +82,6 @@ fn collect(
         }
     }
     reminder_log::prune(tx, &today.plus_days(-7).iso())?;
+    medicines::purge_deleted(tx)?;
     Ok(fresh)
 }

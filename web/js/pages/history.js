@@ -1,12 +1,14 @@
-// History: the intake log by day, newest first, with undo (which restores stock).
+// History: the intake log by day, newest first. Removing an entry gives the stock back and
+// offers an undo that logs the same entry again.
 
+import { undoToast } from "/static/kp/dist/kp-themes.min.js";
 import { h, redraw } from "../dom.js";
 import { api } from "../api.js";
 import { friendlyDate, formatDate } from "../clock.js";
 import { chips } from "../controls.js";
 import { badge, qty } from "../format.js";
 import { onTick } from "../ticker.js";
-import { button, dataCard, linkButton, pageHeader, reportError, say } from "../ui.js";
+import { button, dataCard, linkButton, pageHeader, reportError } from "../ui.js";
 
 const PAGE = 200;
 const FILTERS = { all: "All", taken: "Taken", skipped: "Skipped" };
@@ -28,7 +30,7 @@ function row(i, meds, undo) {
       h("div", { class: "kp-row" },
         i.status === "taken" ? badge("kp-badge--success", "Taken") : badge("", "Skipped"),
         h("span", { class: "kp-text-muted" }, [i.status === "taken" ? qty(i.dose, unit) : null, planned(i), i.note].filter(Boolean).join(" · ")))),
-    h("div", { class: "kp-row-actions" }, button("Undo", { look: "kp-button--ghost", key: `undo-${i.id}`, onClick: () => undo(i), label: `Undo ${i.medicine_name} at ${time}` })));
+    h("div", { class: "kp-row-actions" }, button("Remove", { look: "kp-button--ghost", key: `remove-${i.id}`, onClick: () => undo(i), label: `Remove ${i.medicine_name} at ${time}` })));
 }
 
 /**
@@ -43,7 +45,7 @@ function row(i, meds, undo) {
 function buildLayout(root, on) {
   const filterSlot = h("div", { class: "kp-toolbar__group", role: "group", "aria-label": "Show" });
   const tools = h("div", { class: "kp-toolbar kp-ops__toolbar", role: "group", "aria-label": "Filter the log" }, h("div", { class: "kp-toolbar__filters" }, filterSlot));
-  const card = dataCard({ id: "hist", title: "Intake log", description: "Everything you took or skipped. Undo removes an entry and gives the stock back.", onRetry: on.reload });
+  const card = dataCard({ id: "hist", title: "Intake log", description: "Everything you took or skipped. Removing an entry gives the stock back; you can undo it right after.", onRetry: on.reload });
   card.card.dataset.kpSpan = "12";
   const more = button("Show earlier entries", { look: "kp-self-start", onClick: on.more });
   more.hidden = true;
@@ -93,18 +95,30 @@ async function load(p) {
   }
 }
 
-/** Remove an entry at once, put it back when the server refuses. @param {HistoryPage} p @param {any} i */
+/** Log an entry again, exactly as it was (the undo of a removal). @param {any} i */
+const relog = (i) =>
+  api.logIntake({ medicineId: i.medicine_id, status: i.status, dose: i.dose, takenAt: i.taken_at, plannedFor: i.planned_for, note: i.note });
+
+/** Remove an entry at once, put it back when the server refuses, and offer to log it again. @param {HistoryPage} p @param {any} i */
 async function undo(p, i) {
   const before = p.items;
   p.items = p.items.filter((x) => x.id !== i.id);
   draw(p);
   try {
     await api.undoIntake(i.id);
-    say(`Removed ${i.medicine_name} at ${i.taken_at.slice(11, 16)}.${i.status === "taken" ? " Stock restored." : ""}`);
   } catch (e) {
     p.items = before;
-    reportError(`Could not undo ${i.medicine_name}.`, e);
+    reportError(`Could not remove ${i.medicine_name}.`, e);
+    return load(p);
   }
+  undoToast(`Removed ${i.medicine_name} at ${i.taken_at.slice(11, 16)}.${i.status === "taken" ? " Stock restored." : ""}`, {
+    mode: "revert",
+    ms: 8000,
+    undo: async () => {
+      await relog(i);
+      await load(p);
+    },
+  });
   await load(p);
 }
 

@@ -8,7 +8,7 @@ use serde::Deserialize;
 use super::{ApiResult, Clock};
 use crate::domain::date::Date;
 use crate::domain::schedule::{DoseVerdict, PastDose, check_dose};
-use crate::store::intakes::{self, Intake, IntakeInput};
+use crate::store::intakes::{self, Intake, IntakeEdit, IntakeInput};
 use crate::store::medicines;
 
 #[derive(Debug, Deserialize)]
@@ -32,6 +32,17 @@ pub async fn record(
 ) -> ApiResult<serde_json::Value> {
     Date::parse(&input.taken_at)?;
     let id = db.write(move |tx| intakes::record(tx, &input)).await?;
+    Ok(Json(serde_json::json!({ "id": id })))
+}
+
+/// Correct the time, dose or note of a logged intake.
+pub async fn edit(
+    State(db): State<AppDb>,
+    Path(id): Path<i64>,
+    Json(edit): Json<IntakeEdit>,
+) -> ApiResult<serde_json::Value> {
+    Date::parse(&edit.taken_at)?;
+    db.write(move |tx| intakes::edit(tx, id, &edit)).await?;
     Ok(Json(serde_json::json!({ "id": id })))
 }
 

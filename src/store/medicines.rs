@@ -94,7 +94,9 @@ fn fill_children(conn: &Connection, mut m: Medicine) -> Result<Medicine, Error> 
 }
 
 pub fn list(conn: &Connection, today: Date) -> Result<Vec<Medicine>, Error> {
-    let sql = format!("SELECT {COLUMNS} FROM medicines ORDER BY active DESC, name COLLATE NOCASE");
+    let sql = format!(
+        "SELECT {COLUMNS} FROM medicines WHERE deleted_at IS NULL ORDER BY active DESC, name COLLATE NOCASE"
+    );
     let mut stmt = conn.prepare(&sql).map_err(db_err)?;
     let rows = stmt.query_map([], |r| read_row(r, today)).map_err(db_err)?;
     let mut out = Vec::new();
@@ -105,7 +107,7 @@ pub fn list(conn: &Connection, today: Date) -> Result<Vec<Medicine>, Error> {
 }
 
 pub fn get(conn: &Connection, id: i64, today: Date) -> Result<Medicine, Error> {
-    let sql = format!("SELECT {COLUMNS} FROM medicines WHERE id = ?1");
+    let sql = format!("SELECT {COLUMNS} FROM medicines WHERE id = ?1 AND deleted_at IS NULL");
     let found = conn.query_row(&sql, [id], |r| read_row(r, today));
     match found {
         Ok(m) => fill_children(conn, m),
@@ -181,14 +183,44 @@ pub fn update(tx: &Transaction, id: i64, m: &MedicineInput) -> Result<(), Error>
     symptoms::set_for_medicine(tx, id, &m.symptoms)
 }
 
+/// Soft delete: the row, its schedule and its history stay for [`PURGE_AFTER_DAYS`]
+/// so `restore` can bring it back.
 pub fn delete(tx: &Transaction, id: i64) -> Result<(), Error> {
     let changed = tx
-        .execute("DELETE FROM medicines WHERE id = ?1", [id])
+        .execute(
+            "UPDATE medicines SET deleted_at = datetime('now') WHERE id = ?1 AND deleted_at IS NULL",
+            [id],
+        )
         .map_err(db_err)?;
     if changed == 0 {
         return Err(not_found("medicine", id));
     }
-    symptoms::set_for_medicine(tx, id, &[])
+    Ok(())
+}
+
+pub fn restore(tx: &Transaction, id: i64) -> Result<(), Error> {
+    let changed = tx
+        .execute(
+            "UPDATE medicines SET deleted_at = NULL WHERE id = ?1 AND deleted_at IS NOT NULL",
+            [id],
+        )
+        .map_err(db_err)?;
+    if changed == 0 {
+        return Err(not_found("deleted medicine", id));
+    }
+    Ok(())
+}
+
+/// How long a deleted medicine can still be restored.
+pub const PURGE_AFTER_DAYS: i64 = 14;
+
+/// Remove what has been deleted for longer than the restore window.
+pub fn purge_deleted(tx: &Transaction) -> Result<usize, Error> {
+    tx.execute(
+        "DELETE FROM medicines WHERE deleted_at IS NOT NULL AND deleted_at < datetime('now', ?1)",
+        [format!("-{PURGE_AFTER_DAYS} days")],
+    )
+    .map_err(db_err)
 }
 
 /// Switching a medicine off or on is the whole "pause this schedule" story:

@@ -30,13 +30,17 @@ pub fn router(db: AppDb) -> Router {
                 .delete(medicines::remove),
         )
         .route("/api/mc/medicines/{id}/active", post(medicines::set_active))
+        .route("/api/mc/medicines/{id}/restore", post(medicines::restore))
         .route("/api/mc/medicines/{id}/stock", post(medicines::add_stock))
         .route(
             "/api/mc/medicines/{id}/dose-check",
             get(intakes::dose_check),
         )
         .route("/api/mc/intakes", get(intakes::list).post(intakes::record))
-        .route("/api/mc/intakes/{id}", axum::routing::delete(intakes::undo))
+        .route(
+            "/api/mc/intakes/{id}",
+            axum::routing::put(intakes::edit).delete(intakes::undo),
+        )
         .route("/api/mc/today", get(today::overview))
         .route("/api/mc/search", get(search::by_symptom))
         .route(

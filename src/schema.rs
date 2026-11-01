@@ -108,6 +108,11 @@ CREATE TABLE agenda_sent (
 );
 ";
 
+/// Deleting a medicine is soft for two weeks, so the app can offer an undo.
+const V6: &str = "
+ALTER TABLE medicines ADD COLUMN deleted_at TEXT;
+";
+
 pub fn migrations() -> Vec<Migration> {
     vec![
         Migration::sql(V1),
@@ -115,5 +120,6 @@ pub fn migrations() -> Vec<Migration> {
         Migration::sql(V3),
         Migration::sql(V4),
         Migration::sql(V5),
+        Migration::sql(V6),
     ]
 }

@@ -75,6 +75,41 @@ pub fn record(tx: &Transaction, i: &IntakeInput) -> Result<i64, Error> {
     Ok(id)
 }
 
+/// What can change on a logged intake.
+#[derive(Debug, Deserialize)]
+pub struct IntakeEdit {
+    /// Local `YYYY-MM-DDTHH:MM`.
+    pub taken_at: String,
+    pub dose: f64,
+    #[serde(default)]
+    pub note: String,
+}
+
+/// Correct the time, dose or note of an intake; a changed dose moves the stock.
+pub fn edit(tx: &Transaction, id: i64, e: &IntakeEdit) -> Result<(), Error> {
+    if e.dose <= 0.0 {
+        return Err(Error::invalid(
+            "a dose must be more than zero",
+            "enter the amount that was taken",
+        ));
+    }
+    let row: Result<(i64, String, f64), _> = tx.query_row(
+        "SELECT medicine_id, status, dose FROM intakes WHERE id = ?1",
+        [id],
+        |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+    );
+    let (medicine_id, status, old_dose) = row.map_err(|_| not_found("intake", id))?;
+    tx.execute(
+        "UPDATE intakes SET taken_at = ?2, dose = ?3, note = ?4 WHERE id = ?1",
+        params![id, e.taken_at, e.dose, e.note],
+    )
+    .map_err(db_err)?;
+    if status == "taken" {
+        medicines::adjust_stock(tx, medicine_id, old_dose - e.dose)?;
+    }
+    Ok(())
+}
+
 /// Undo an intake: a taken dose goes back into the stock.
 pub fn undo(tx: &Transaction, id: i64) -> Result<(), Error> {
     let row: Result<(i64, String, f64), _> = tx.query_row(
@@ -98,7 +133,7 @@ pub fn list(conn: &Connection, prefix: &str, limit: i64) -> Result<Vec<Intake>, 
         .prepare(
             "SELECT i.id, i.medicine_id, m.name, i.taken_at, i.planned_for, i.status, i.dose, i.note
              FROM intakes i JOIN medicines m ON m.id = i.medicine_id
-             WHERE i.taken_at LIKE ?1 || '%' ORDER BY i.taken_at DESC LIMIT ?2",
+             WHERE m.deleted_at IS NULL AND i.taken_at LIKE ?1 || '%' ORDER BY i.taken_at DESC LIMIT ?2",
         )
         .map_err(db_err)?;
     let rows = stmt
