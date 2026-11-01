@@ -123,3 +123,8 @@ pub fn migrations() -> Vec<Migration> {
         Migration::sql(V6),
     ]
 }
+
+/// Every migration's SQL, in order, for tests that run the stores against an
+/// in-memory database.
+#[cfg(test)]
+pub const ALL_SQL: [&str; 6] = [V1, V2, V3, V4, V5, V6];

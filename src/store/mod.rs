@@ -27,3 +27,6 @@ pub fn not_found(what: &str, id: i64) -> Error {
         "reload the list; it may have been deleted",
     )
 }
+
+#[cfg(test)]
+mod tests;

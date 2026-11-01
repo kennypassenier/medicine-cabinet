@@ -30,11 +30,12 @@ mod embedded {
 }
 
 /// The browser app's areas, in navigation order: (id, title, path).
-const PAGES: [(&str, &str, &str); 4] = [
+const PAGES: [(&str, &str, &str); 5] = [
     ("today", "Today", "/"),
     ("cabinet", "Cabinet", "/cabinet"),
     ("symptoms", "Symptoms", "/symptoms"),
     ("history", "History", "/history"),
+    ("settings", "Settings", "/settings"),
 ];
 
 fn fail(e: impl std::fmt::Display) -> std::process::ExitCode {
