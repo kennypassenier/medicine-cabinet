@@ -57,14 +57,29 @@ fn name_taken(e: chassis::storage::rusqlite::Error, name: &str) -> Error {
     db_err(e)
 }
 
-pub fn create(tx: &Transaction, name: &str, unit: &str) -> Result<i64, Error> {
+/// Create a form. `medicine_ids` sets this form on those medicines, which is how an
+/// undo of a delete brings them back.
+pub fn create(
+    tx: &Transaction,
+    name: &str,
+    unit: &str,
+    medicine_ids: &[i64],
+) -> Result<i64, Error> {
     let (name, unit) = clean(name, unit)?;
     tx.execute(
         "INSERT INTO medicine_forms (name, unit) VALUES (?1, ?2)",
         params![name, unit],
     )
     .map_err(|e| name_taken(e, &name))?;
-    Ok(tx.last_insert_rowid())
+    let id = tx.last_insert_rowid();
+    for medicine_id in medicine_ids {
+        tx.execute(
+            "UPDATE medicines SET form_id = ?2 WHERE id = ?1",
+            params![medicine_id, id],
+        )
+        .map_err(db_err)?;
+    }
+    Ok(id)
 }
 
 pub fn update(tx: &Transaction, id: i64, name: &str, unit: &str) -> Result<(), Error> {
@@ -81,13 +96,37 @@ pub fn update(tx: &Transaction, id: i64, name: &str, unit: &str) -> Result<(), E
     Ok(())
 }
 
+/// What a delete removed, so an undo can put it back.
+#[derive(Debug, Serialize)]
+pub struct DeletedForm {
+    pub name: String,
+    pub unit: String,
+    pub medicine_ids: Vec<i64>,
+}
+
 /// Medicines of this form keep existing; they just have no form any more.
-pub fn delete(tx: &Transaction, id: i64) -> Result<(), Error> {
-    let changed = tx
-        .execute("DELETE FROM medicine_forms WHERE id = ?1", [id])
+pub fn delete(tx: &Transaction, id: i64) -> Result<DeletedForm, Error> {
+    let (name, unit): (String, String) = tx
+        .query_row(
+            "SELECT name, unit FROM medicine_forms WHERE id = ?1",
+            [id],
+            |r| Ok((r.get(0)?, r.get(1)?)),
+        )
+        .map_err(|_| not_found("form", id))?;
+    let mut stmt = tx
+        .prepare("SELECT id FROM medicines WHERE form_id = ?1")
         .map_err(db_err)?;
-    if changed == 0 {
-        return Err(not_found("form", id));
-    }
-    Ok(())
+    let medicine_ids = stmt
+        .query_map([id], |r| r.get::<_, i64>(0))
+        .map_err(db_err)?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(db_err)?;
+    drop(stmt);
+    tx.execute("DELETE FROM medicine_forms WHERE id = ?1", [id])
+        .map_err(db_err)?;
+    Ok(DeletedForm {
+        name,
+        unit,
+        medicine_ids,
+    })
 }

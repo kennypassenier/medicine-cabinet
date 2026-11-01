@@ -81,7 +81,7 @@ fn seed_categories(tx: &Transaction) -> Result<Vec<(&'static str, i64)>, Error> 
         "General",
     ]
     .into_iter()
-    .map(|name| Ok((name, categories::create(tx, name)?)))
+    .map(|name| Ok((name, categories::create(tx, name, &[])?)))
     .collect()
 }
 

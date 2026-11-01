@@ -54,11 +54,21 @@ fn name_taken(e: chassis::storage::rusqlite::Error, name: &str) -> Error {
     db_err(e)
 }
 
-pub fn create(tx: &Transaction, name: &str) -> Result<i64, Error> {
+/// Create a category. `symptom_ids` files those symptoms under it, which is how an
+/// undo of a delete brings the old grouping back.
+pub fn create(tx: &Transaction, name: &str, symptom_ids: &[i64]) -> Result<i64, Error> {
     let name = clean_name(name)?;
     tx.execute("INSERT INTO symptom_categories (name) VALUES (?1)", [&name])
         .map_err(|e| name_taken(e, &name))?;
-    Ok(tx.last_insert_rowid())
+    let id = tx.last_insert_rowid();
+    for symptom_id in symptom_ids {
+        tx.execute(
+            "UPDATE symptoms SET category_id = ?2 WHERE id = ?1",
+            params![symptom_id, id],
+        )
+        .map_err(db_err)?;
+    }
+    Ok(id)
 }
 
 pub fn rename(tx: &Transaction, id: i64, name: &str) -> Result<(), Error> {
@@ -75,13 +85,32 @@ pub fn rename(tx: &Transaction, id: i64, name: &str) -> Result<(), Error> {
     Ok(())
 }
 
-/// Its symptoms stay; they just lose the category.
-pub fn delete(tx: &Transaction, id: i64) -> Result<(), Error> {
-    let changed = tx
-        .execute("DELETE FROM symptom_categories WHERE id = ?1", [id])
+/// What a delete removed, so an undo can put it back.
+#[derive(Debug, Serialize)]
+pub struct DeletedCategory {
+    pub name: String,
+    pub symptom_ids: Vec<i64>,
+}
+
+/// Its symptoms stay; they just lose the category. The result lists them.
+pub fn delete(tx: &Transaction, id: i64) -> Result<DeletedCategory, Error> {
+    let name: String = tx
+        .query_row(
+            "SELECT name FROM symptom_categories WHERE id = ?1",
+            [id],
+            |r| r.get(0),
+        )
+        .map_err(|_| not_found("category", id))?;
+    let mut stmt = tx
+        .prepare("SELECT id FROM symptoms WHERE category_id = ?1")
         .map_err(db_err)?;
-    if changed == 0 {
-        return Err(not_found("category", id));
-    }
-    Ok(())
+    let symptom_ids = stmt
+        .query_map([id], |r| r.get::<_, i64>(0))
+        .map_err(db_err)?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(db_err)?;
+    drop(stmt);
+    tx.execute("DELETE FROM symptom_categories WHERE id = ?1", [id])
+        .map_err(db_err)?;
+    Ok(DeletedCategory { name, symptom_ids })
 }

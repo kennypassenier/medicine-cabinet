@@ -96,14 +96,30 @@ fn name_taken(e: chassis::storage::rusqlite::Error, name: &str) -> Error {
     db_err(e)
 }
 
-pub fn create(tx: &Transaction, name: &str, category_id: Option<i64>) -> Result<i64, Error> {
+/// Create a symptom. `medicine_ids` relinks it to those medicines, which is how an
+/// undo of a delete brings the old links back.
+pub fn create(
+    tx: &Transaction,
+    name: &str,
+    category_id: Option<i64>,
+    medicine_ids: &[i64],
+) -> Result<i64, Error> {
     let name = clean_name(name)?;
     tx.execute(
         "INSERT INTO symptoms (name, category_id) VALUES (?1, ?2)",
         params![name, category_id],
     )
     .map_err(|e| name_taken(e, &name))?;
-    Ok(tx.last_insert_rowid())
+    let id = tx.last_insert_rowid();
+    for medicine_id in medicine_ids {
+        tx.execute(
+            "INSERT OR IGNORE INTO medicine_symptoms (medicine_id, symptom_id)
+             SELECT id, ?2 FROM medicines WHERE id = ?1",
+            params![medicine_id, id],
+        )
+        .map_err(db_err)?;
+    }
+    Ok(id)
 }
 
 pub fn update(
@@ -125,13 +141,37 @@ pub fn update(
     Ok(())
 }
 
-/// Deleting a symptom unlinks it from every medicine.
-pub fn delete(tx: &Transaction, id: i64) -> Result<(), Error> {
-    let changed = tx
-        .execute("DELETE FROM symptoms WHERE id = ?1", [id])
+/// What a delete removed, so an undo can put it back.
+#[derive(Debug, Serialize)]
+pub struct DeletedSymptom {
+    pub name: String,
+    pub category_id: Option<i64>,
+    pub medicine_ids: Vec<i64>,
+}
+
+/// Deleting a symptom unlinks it from every medicine; the result says which.
+pub fn delete(tx: &Transaction, id: i64) -> Result<DeletedSymptom, Error> {
+    let (name, category_id): (String, Option<i64>) = tx
+        .query_row(
+            "SELECT name, category_id FROM symptoms WHERE id = ?1",
+            [id],
+            |r| Ok((r.get(0)?, r.get(1)?)),
+        )
+        .map_err(|_| super::not_found("symptom", id))?;
+    let mut stmt = tx
+        .prepare("SELECT medicine_id FROM medicine_symptoms WHERE symptom_id = ?1")
         .map_err(db_err)?;
-    if changed == 0 {
-        return Err(super::not_found("symptom", id));
-    }
-    Ok(())
+    let medicine_ids = stmt
+        .query_map([id], |r| r.get::<_, i64>(0))
+        .map_err(db_err)?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(db_err)?;
+    drop(stmt);
+    tx.execute("DELETE FROM symptoms WHERE id = ?1", [id])
+        .map_err(db_err)?;
+    Ok(DeletedSymptom {
+        name,
+        category_id,
+        medicine_ids,
+    })
 }

@@ -13,11 +13,17 @@ use crate::store::symptoms::{self, Symptom};
 pub struct SymptomBody {
     name: String,
     category_id: Option<i64>,
+    /// Only on create: relink to these medicines (the undo of a delete).
+    #[serde(default)]
+    medicine_ids: Vec<i64>,
 }
 
 #[derive(Debug, Deserialize)]
 pub struct CategoryBody {
     name: String,
+    /// Only on create: file these symptoms under it (the undo of a delete).
+    #[serde(default)]
+    symptom_ids: Vec<i64>,
 }
 
 pub async fn list(State(db): State<AppDb>) -> ApiResult<Vec<Symptom>> {
@@ -29,7 +35,7 @@ pub async fn create(
     Json(b): Json<SymptomBody>,
 ) -> ApiResult<serde_json::Value> {
     let id = db
-        .write(move |tx| symptoms::create(tx, &b.name, b.category_id))
+        .write(move |tx| symptoms::create(tx, &b.name, b.category_id, &b.medicine_ids))
         .await?;
     Ok(Json(serde_json::json!({ "id": id })))
 }
@@ -45,8 +51,8 @@ pub async fn replace(
 }
 
 pub async fn remove(State(db): State<AppDb>, Path(id): Path<i64>) -> ApiResult<serde_json::Value> {
-    db.write(move |tx| symptoms::delete(tx, id)).await?;
-    Ok(Json(serde_json::json!({ "deleted": id })))
+    let gone = db.write(move |tx| symptoms::delete(tx, id)).await?;
+    Ok(Json(serde_json::json!({ "deleted": id, "was": gone })))
 }
 
 pub async fn list_categories(State(db): State<AppDb>) -> ApiResult<Vec<Category>> {
@@ -57,7 +63,9 @@ pub async fn create_category(
     State(db): State<AppDb>,
     Json(b): Json<CategoryBody>,
 ) -> ApiResult<serde_json::Value> {
-    let id = db.write(move |tx| categories::create(tx, &b.name)).await?;
+    let id = db
+        .write(move |tx| categories::create(tx, &b.name, &b.symptom_ids))
+        .await?;
     Ok(Json(serde_json::json!({ "id": id })))
 }
 
@@ -75,6 +83,6 @@ pub async fn remove_category(
     State(db): State<AppDb>,
     Path(id): Path<i64>,
 ) -> ApiResult<serde_json::Value> {
-    db.write(move |tx| categories::delete(tx, id)).await?;
-    Ok(Json(serde_json::json!({ "deleted": id })))
+    let gone = db.write(move |tx| categories::delete(tx, id)).await?;
+    Ok(Json(serde_json::json!({ "deleted": id, "was": gone })))
 }

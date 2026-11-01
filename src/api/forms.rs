@@ -13,6 +13,9 @@ pub struct FormBody {
     name: String,
     #[serde(default)]
     unit: String,
+    /// Only on create: set this form on these medicines (the undo of a delete).
+    #[serde(default)]
+    medicine_ids: Vec<i64>,
 }
 
 pub async fn list(State(db): State<AppDb>) -> ApiResult<Vec<Form>> {
@@ -24,7 +27,7 @@ pub async fn create(
     Json(b): Json<FormBody>,
 ) -> ApiResult<serde_json::Value> {
     let id = db
-        .write(move |tx| forms::create(tx, &b.name, &b.unit))
+        .write(move |tx| forms::create(tx, &b.name, &b.unit, &b.medicine_ids))
         .await?;
     Ok(Json(serde_json::json!({ "id": id })))
 }
@@ -40,6 +43,6 @@ pub async fn replace(
 }
 
 pub async fn remove(State(db): State<AppDb>, Path(id): Path<i64>) -> ApiResult<serde_json::Value> {
-    db.write(move |tx| forms::delete(tx, id)).await?;
-    Ok(Json(serde_json::json!({ "deleted": id })))
+    let gone = db.write(move |tx| forms::delete(tx, id)).await?;
+    Ok(Json(serde_json::json!({ "deleted": id, "was": gone })))
 }
