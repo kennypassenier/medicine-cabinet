@@ -12,15 +12,17 @@ const tabbar = /** @type {HTMLElement} */ (document.getElementById("tabbar"));
 
 /** @typedef {{ path: string, title: string, hint?: string }} Place */
 
-/** The "More" places: this app's, then the kit's pages the registry lists. @returns {Promise<Place[]>} */
+/** The "More" places the kit's page registry lists (Settings, Status, Clients, Storage). @returns {Promise<Place[]>} */
 async function morePlaces() {
   const own = MORE.map(({ path, title, hint }) => ({ path, title, hint }));
   try {
     const res = await fetch("/api/kit/pages", { credentials: "same-origin" });
     if (!res.ok) throw new Error(`The page registry answered ${res.status}.`);
     const set = await res.json();
-    const kit = set.pages.filter((/** @type {any} */ p) => p.nav && p.source === "kit");
-    return [...own, ...kit.map((/** @type {any} */ p) => ({ path: p.path, title: p.title, hint: p.hint ?? undefined }))];
+    // The kit says which pages live in the one More menu (`more`: their ids, in order).
+    const byId = new Map(set.pages.map((/** @type {any} */ p) => [p.id, p]));
+    const listed = (set.more ?? []).map((/** @type {string} */ id) => byId.get(id)).filter(Boolean);
+    return listed.map((/** @type {any} */ p) => ({ path: p.path, title: p.title, hint: p.hint ?? undefined }));
   } catch (e) {
     console.warn("kit page registry unavailable", e);
     return own;

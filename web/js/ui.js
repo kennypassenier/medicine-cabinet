@@ -36,7 +36,7 @@ export function pageHeader({ title, description, updated, actions = [] }) {
         h("h1", { class: "kp-page-header__title", id: "page-title", tabindex: "-1" }, title),
         updated === undefined ? null : h("time", { class: "kp-page-header__updated" }, updated),
         h("p", { class: "kp-page-header__description" }, description)),
-      actions.length ? h("div", { class: "kp-page-header__actions" }, ...actions) : null));
+      h("div", { class: "kp-page-header__actions" }, h("div", { "data-chassis-refresh": "" }), ...actions)));
 }
 
 /**

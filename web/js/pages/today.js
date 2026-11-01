@@ -3,8 +3,8 @@
 
 import { h, redraw } from "../dom.js";
 import { api, plannedToday } from "../api.js";
-import { longDay, nowParam } from "../clock.js";
-import { onTick } from "../ticker.js";
+import { longDay } from "../clock.js";
+import { markFresh, onTick } from "../ticker.js";
 import { dataCard, pageHeader, reportError, linkButton } from "../ui.js";
 import { takeOne } from "../dose.js";
 import { undoable } from "../undo.js";
@@ -22,7 +22,7 @@ import { renderAsNeeded } from "./today-asneeded.js";
 
 /** Build the page skeleton into `root`. @param {HTMLElement} root @param {{ reload: () => void }} on */
 function buildLayout(root, on) {
-  const heading = pageHeader({ title: "Today", updated: `updated ${nowParam().slice(11)}`, description: longDay() });
+  const heading = pageHeader({ title: "Today", description: longDay() });
   const next = dataCard({ id: "next", title: "Next dose", description: "What to take now, or next.", onRetry: on.reload });
   const sched = dataCard({ id: "sched", title: "Schedule", description: "Every dose planned for today. Tap Take when you have taken it.", onRetry: on.reload });
   const need = dataCard({ id: "need", title: "When needed", description: "Medicines you take as symptoms call for them. The cabinet checks the safe gap first.", onRetry: on.reload });
@@ -42,7 +42,6 @@ function draw(t) {
   const { today, meds } = t.model;
   const { heading, grid, next, sched, need, band } = t.ui;
   heading.querySelector(".kp-page-header__description")?.replaceChildren(longDay());
-  heading.querySelector(".kp-page-header__updated")?.replaceChildren(`updated ${nowParam().slice(11)}`);
   if (meds.size === 0) return firstRun(grid);
   const on = { take: (/** @type {any} */ d) => log(t, d, "taken"), skip: (/** @type {any} */ d) => log(t, d, "skipped"), undo: (/** @type {any} */ d) => undo(t, d) };
   redraw(grid, () => {
@@ -75,6 +74,7 @@ async function load(t, manual = false) {
     t.model = { today, meds: new Map(list.map((/** @type {any} */ m) => [m.id, m])) };
     t.loadedOnce = true;
     draw(t);
+    markFresh();
   } catch (e) {
     if (!t.alive) return;
     if (!t.loadedOnce) for (const c of [next, sched, need]) c.state("error", { title: "Today could not be loaded", text: e instanceof Error ? e.message : String(e) });

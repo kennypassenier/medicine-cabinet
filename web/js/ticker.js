@@ -1,9 +1,6 @@
-// Keeps time-dependent screens honest: runs `fn` every minute while the tab
-// is visible and again the moment the tab or window regains focus, so a
-// "due" dose never shows stale.
-
-/** Refresh period in milliseconds. */
-export const REFRESH_MS = 60_000;
+// Keeps time-dependent screens honest: runs `fn` on the kit's refresh tick (one
+// control, one remembered interval, shared with Status and Storage) and again
+// the moment the tab or window regains focus, so a "due" dose never shows stale.
 
 /** The event that asks every screen to refresh now (after an Undo that changed data on another screen). */
 export const REFRESH_EVENT = "mc-refresh";
@@ -19,14 +16,19 @@ export function onTick(fn) {
   const run = () => {
     if (document.visibilityState === "visible") void fn();
   };
-  const timer = setInterval(run, REFRESH_MS);
+  const off = window.chassisRefresh?.onTick(async () => {
+    await fn();
+  });
   document.addEventListener("visibilitychange", run);
   window.addEventListener("focus", run);
   window.addEventListener(REFRESH_EVENT, run);
   return () => {
-    clearInterval(timer);
+    off?.();
     document.removeEventListener("visibilitychange", run);
     window.removeEventListener("focus", run);
     window.removeEventListener(REFRESH_EVENT, run);
   };
 }
+
+/** Tell the kit's freshness line that the data on screen is current. */
+export const markFresh = () => window.chassisRefresh?.markFresh(new Date());

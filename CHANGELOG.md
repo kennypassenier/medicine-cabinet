@@ -6,6 +6,11 @@ carries a **Migration** section saying what an operator must do.
 
 ## [Unreleased]
 
+### Changed
+- One More menu (Settings, Status, Clients, Storage) and the kit's own refresh
+  control and freshness line instead of an own refresh; needs chassis-rs with
+  `Page::secondary()` and `window.chassisRefresh`.
+
 ## [1.0.0] - 2026-10-31
 
 ### Added

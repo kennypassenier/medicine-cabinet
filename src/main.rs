@@ -75,7 +75,15 @@ async fn main() -> std::process::ExitCode {
     // Registered so the kit's own pages (Status, Clients, Storage) draw the
     // same navigation as the browser app does.
     for (order, (id, title, path)) in PAGES.iter().enumerate() {
-        app.page(Page::new(id, title, path).order(order as i32));
+        let page = Page::new(id, title, path).order(order as i32);
+        // Settings and the kit's admin pages live in the one More menu.
+        app.page(if *id == "settings" {
+            page.secondary()
+        } else {
+            page
+        });
     }
+    app.kit_page("status", |p| p.secondary());
+    app.kit_page("clients", |p| p.secondary());
     app.run().await
 }
