@@ -37,10 +37,20 @@ export const $$ = (sel, root = document) => /** @type {HTMLElement[]} */ ([...ro
  */
 export function redraw(container, draw) {
   const active = document.activeElement;
-  const key = active instanceof HTMLElement && container.contains(active) ? active.dataset.key : undefined;
+  const inside = active instanceof HTMLElement && container.contains(active);
+  // A control is found again by its row key, or by its id when it has no key.
+  const key = inside ? active.dataset.key : undefined;
+  const id = inside && !key ? active.id : "";
+  const caret = inside && active instanceof HTMLInputElement && active.type === "text" ? [active.selectionStart, active.selectionEnd] : null;
   const scrollY = window.scrollY;
   draw();
-  if (key) container.querySelector(`[data-key="${CSS.escape(key)}"]`)?.focus({ preventScroll: true });
+  const again = key
+    ? container.querySelector(`[data-key="${CSS.escape(key)}"]`)
+    : id ? container.querySelector(`#${CSS.escape(id)}`) : null;
+  if (again instanceof HTMLElement) {
+    again.focus({ preventScroll: true });
+    if (caret && again instanceof HTMLInputElement) again.setSelectionRange(caret[0], caret[1]);
+  }
   if (window.scrollY !== scrollY) window.scrollTo({ top: scrollY });
 }
 
