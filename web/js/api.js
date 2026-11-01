@@ -64,21 +64,23 @@ export const api = {
   create: (/** @type {object} */ body) => call("POST", "/medicines", { timed: true, body }),
   update: (/** @type {number} */ id, /** @type {object} */ body) => call("PUT", `/medicines/${id}`, { timed: true, body }),
   remove: (/** @type {number} */ id) => call("DELETE", `/medicines/${id}`),
+  /** Bring back a medicine deleted in the last 14 days. */
+  restore: (/** @type {number} */ id) => call("POST", `/medicines/${id}/restore`, { timed: true }),
   setActive: (/** @type {number} */ id, /** @type {boolean} */ active) => call("POST", `/medicines/${id}/active`, { timed: true, body: { active } }),
   addStock: (/** @type {number} */ id, /** @type {number} */ delta) => call("POST", `/medicines/${id}/stock`, { timed: true, body: { delta } }),
   doseCheck: (/** @type {number} */ id) => call("GET", `/medicines/${id}/dose-check`, { timed: true }),
   today: () => call("GET", "/today", { timed: true }),
   search: (/** @type {string} */ symptom) => call("GET", "/search", { timed: true, query: { symptom } }),
   symptoms: () => call("GET", "/symptoms"),
-  addSymptom: (/** @type {{ name: string, category_id: number | null }} */ b) => call("POST", "/symptoms", { body: b }),
+  addSymptom: (/** @type {{ name: string, category_id: number | null, medicine_ids?: number[] }} */ b) => call("POST", "/symptoms", { body: b }),
   editSymptom: (/** @type {number} */ id, /** @type {{ name: string, category_id: number | null }} */ b) => call("PUT", `/symptoms/${id}`, { body: b }),
   removeSymptom: (/** @type {number} */ id) => call("DELETE", `/symptoms/${id}`),
   categories: () => call("GET", "/categories"),
-  addCategory: (/** @type {string} */ name) => call("POST", "/categories", { body: { name } }),
+  addCategory: (/** @type {string} */ name, /** @type {number[]} */ symptomIds = []) => call("POST", "/categories", { body: { name, symptom_ids: symptomIds } }),
   editCategory: (/** @type {number} */ id, /** @type {string} */ name) => call("PUT", `/categories/${id}`, { body: { name } }),
   removeCategory: (/** @type {number} */ id) => call("DELETE", `/categories/${id}`),
   forms: () => call("GET", "/forms"),
-  addForm: (/** @type {{ name: string, unit: string }} */ b) => call("POST", "/forms", { body: b }),
+  addForm: (/** @type {{ name: string, unit: string, medicine_ids?: number[] }} */ b) => call("POST", "/forms", { body: b }),
   editForm: (/** @type {number} */ id, /** @type {{ name: string, unit: string }} */ b) => call("PUT", `/forms/${id}`, { body: b }),
   removeForm: (/** @type {number} */ id) => call("DELETE", `/forms/${id}`),
   intakes: (/** @type {string | undefined} */ day, limit = 200) => call("GET", "/intakes", { query: { day, limit } }),
@@ -90,6 +92,8 @@ export const api = {
     call("POST", "/intakes", {
       body: { medicine_id: i.medicineId, taken_at: i.takenAt ?? nowParam(), planned_for: i.plannedFor ?? null, status: i.status, dose: i.dose, note: i.note },
     }),
+  /** Correct a logged intake; the stock follows on the server. @param {number} id @param {{ taken_at: string, dose: number, note: string }} b */
+  editIntake: (id, b) => call("PUT", `/intakes/${id}`, { body: b }),
   undoIntake: (/** @type {number} */ id) => call("DELETE", `/intakes/${id}`),
 };
 

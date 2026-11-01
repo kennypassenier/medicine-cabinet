@@ -3,18 +3,15 @@
 // cleanup. The server answers index.html for every extension-less path, so
 // a deep link (/medicine/3) lands here too.
 
-import { attachNavToggles, attachNavMenus, attachSkipLinks } from "/static/kp/dist/kp-themes.min.js";
 import { attachThemePickers, themeMenuMarkup } from "/static/kp/dist/kp-themes.min.js";
-import { attachTabbars, setTabbarCurrent } from "/static/kp/dist/kp-themes.min.js";
-import { attachSegmented, attachAttention } from "/static/kp/dist/kp-themes.min.js";
-import { applyStoredCalm } from "/static/kp/dist/kp-themes.min.js";
+import { attachSegmented, attachAttention, attachSkipLinks, applyStoredCalm } from "/static/kp/dist/kp-themes.min.js";
 import { h } from "./dom.js";
-import { AREAS, route, tabMarkup } from "./routes.js";
+import { route } from "./routes.js";
 import { dataCard, linkButton, reportError } from "./ui.js";
+import { drawShell, markNav } from "./shell.js";
+import { mayLeave } from "./leave.js";
 
 const page = /** @type {HTMLElement} */ (document.getElementById("page"));
-const nav = /** @type {HTMLElement} */ (document.getElementById("nav"));
-const tabbar = /** @type {HTMLElement} */ (document.getElementById("tabbar"));
 const tools = /** @type {HTMLElement} */ (document.getElementById("tools"));
 
 applyStoredCalm();
@@ -24,10 +21,17 @@ let cleanup = () => {};
 let seq = 0;
 
 /** @param {string} href */
-export function navigate(href) {
+export async function navigate(href) {
+  if (!(await mayLeave())) return;
+  const url = new URL(href, location.href);
+  if (url.origin !== location.origin || !route(trimPath(url.pathname), url.search)) return void location.assign(href);
   history.pushState(null, "", href);
+  shown = location.href;
   void render();
 }
+
+/** The address the screen on show belongs to: Back/Forward restores it when leaving is refused. */
+let shown = location.href;
 
 const trimPath = (/** @type {string} */ p) => p.replace(/\/+$/, "") || "/";
 
@@ -42,6 +46,7 @@ async function render() {
   }
   if (found && "redirect" in found) return;
   markNav(found?.bar ?? "");
+  shown = location.href;
   if (!found) {
     document.title = "Not found · Medicine cabinet";
     return void page.replaceChildren(plate("Page not found", "There is nothing at this address.", "Back to today", "/"));
@@ -68,39 +73,10 @@ function plate(title, text, label, href) {
   return h("div", { class: "kp-ops__body" }, card.card);
 }
 
-/** @param {string} path */
-function markNav(path) {
-  for (const a of nav.querySelectorAll("a")) {
-    if (a.getAttribute("href") === path) a.setAttribute("aria-current", "page");
-    else a.removeAttribute("aria-current");
-  }
-  setTabbarCurrent(tabbar, path);
-}
-
-/** The bar lists the app's areas, then the kit's own pages from the registry. */
-async function drawNav() {
-  const own = AREAS.map((a) => h("li", null, h("a", { class: "kp-nav__link", href: a.path }, a.title)));
-  nav.replaceChildren(...own);
-  try {
-    const res = await fetch("/api/kit/pages", { credentials: "same-origin" });
-    if (!res.ok) throw new Error(String(res.status));
-    const set = await res.json();
-    const kit = set.pages.filter((/** @type {any} */ p) => p.nav && p.source === "kit");
-    nav.append(...kit.map((/** @type {any} */ p) => h("li", null, h("a", { class: "kp-nav__link", href: p.path, title: p.hint }, p.title))));
-  } catch (e) {
-    console.warn("kit page registry unavailable", e);
-  }
-  markNav(route(trimPath(location.pathname), location.search)?.bar ?? "");
-}
-
 const theme = h("span", { class: "mc-theme" });
 theme.innerHTML = themeMenuMarkup({ id: "mc-theme-menu", label: "Theme" });
 tools.replaceChildren(theme);
 attachThemePickers(tools);
-tabbar.replaceChildren(...AREAS.map(tabMarkup));
-attachTabbars(document);
-attachNavToggles(document);
-attachNavMenus(document);
 attachSkipLinks(document);
 // Chips and pills are drawn by the screens after load; one listener on the document wires every group.
 attachSegmented(document);
@@ -117,7 +93,11 @@ document.addEventListener("click", (e) => {
   e.preventDefault();
   navigate(url.pathname + url.search + url.hash);
 });
-addEventListener("popstate", () => void render());
+addEventListener("popstate", async () => {
+  if (location.href === shown) return;
+  if (await mayLeave()) return void render();
+  history.pushState(null, "", shown);
+});
 
-void drawNav();
+void drawShell(route(trimPath(location.pathname), location.search)?.bar ?? "");
 void render();

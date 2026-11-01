@@ -23,7 +23,7 @@ export function drawEntityTable(host, { label, columns, rows, search, pageSize =
     ? h("th", { scope: "col", "data-kp-col": "actions" }, c.title)
     : h("th", { scope: "col", "data-kp-sort": c.sort ?? "text", class: c.numeric ? "kp-numeric" : null }, c.title)));
   const body = h("tbody", null, ...rows.map((r) => h("tr", { "data-kp-row-key": r.key },
-    ...r.cells.map((cell, i) => h("td", { class: columns[i].numeric ? "kp-numeric" : null }, cell)))));
+    ...r.cells.map((cell, i) => h("td", { class: columns[i].numeric ? "kp-numeric" : null, "data-kp-sort-value": r.sortValues?.[i] }, cell)))));
   const wrapper = h("div", { class: "kp-datatable", "data-kp-datatable": "", "data-kp-cards": "", "data-kp-cards-at": cardsAt, "data-kp-page-size": pageSize, "data-kp-page-sizes": "none", "data-kp-region-label": label },
     search ? h("div", { class: "kp-datatable__bar" }, h("input", { class: "kp-datatable__search", type: "search", "data-kp-datatable-search": "", "aria-label": search, placeholder: search, autocomplete: "off" })) : null,
     h("div", { class: "kp-table-wrap" }, h("table", { class: "kp-table" }, h("thead", null, head), body)),
@@ -38,11 +38,3 @@ export function drawEntityTable(host, { label, columns, rows, search, pageSize =
   handle?.sortBy(sorts);
   return detach;
 }
-
-/** The row button every managed row carries; a row's buttons go in `rowActions`. @param {{ label: string, onClick: () => void, look?: string, aria: string }} b */
-export function rowButton({ label, onClick, look = "", aria }) {
-  return h("button", { type: "button", class: `kp-button kp-button--sm ${look}`.trim(), "aria-label": aria, onclick: onClick }, label);
-}
-
-/** The buttons of one row in the actions column: equal columns, so every row's buttons stand in the same place. @param {...HTMLElement} buttons */
-export const rowActions = (...buttons) => h("div", { class: "kp-table__actions" }, ...buttons);

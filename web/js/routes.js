@@ -11,6 +11,11 @@ export const AREAS = [
   { id: "history", path: "/history", title: "History", glyph: "M3 12a9 9 0 109-9 9 9 0 00-6.4 2.6L3 8|M3 3v5h5|M12 7v5l3 2", load: () => import("./pages/history.js") },
 ];
 
+/** The rarer places of this app, first in the "More" menu (the kit's own pages follow from its registry). */
+export const MORE = [
+  { id: "settings", path: "/settings", title: "Settings", hint: "Medicine forms and the unit each one counts in", load: () => import("./pages/settings.js") },
+];
+
 const FORM = () => import("./pages/medicine-form.js");
 
 /**
@@ -21,8 +26,8 @@ const FORM = () => import("./pages/medicine-form.js");
 export function route(path, search) {
   const params = new URLSearchParams(search);
   if (path === "/find") return { redirect: `/symptoms${search}` };
-  const area = AREAS.find((a) => a.path === path);
-  if (area) return { load: area.load, params, bar: area.path };
+  const place = [...AREAS, ...MORE].find((a) => a.path === path);
+  if (place) return { load: place.load, params, bar: place.path };
   if (path === "/medicine/new") return { load: FORM, params, bar: "/cabinet" };
   const m = path.match(/^\/medicine\/(\d+)$/);
   if (m) {

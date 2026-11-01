@@ -34,10 +34,18 @@ export function renderAttention(band, items, meds, reload) {
       title: `${a.medicine_name} ${TITLE[/** @type {keyof typeof TITLE} */ (a.kind)] ?? a.kind}`,
       text: humanize(a.detail),
       action: stock && med
-        ? button("Add stock", { look: "kp-button--sm", onClick: () => addStock(med, reload), label: `Add stock to ${a.medicine_name}` })
+        ? addStockButton(med, reload)
         : linkButton("Open", `/medicine/${a.medicine_id}`, "kp-button--sm"),
     };
   }));
+}
+
+/** The "Add stock" button: it opens the popover under itself. @param {any} med @param {() => void} reload */
+function addStockButton(med, reload) {
+  const btn = button("Add stock", { look: "kp-button--sm", label: `Add stock to ${med.name}` });
+  btn.setAttribute("aria-haspopup", "dialog");
+  btn.addEventListener("click", () => addStock(med, btn, reload));
+  return btn;
 }
 
 /** The band: the package caps it at `SHOWN` problems and adds "Show N more" itself. */

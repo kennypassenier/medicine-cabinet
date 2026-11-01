@@ -12,7 +12,7 @@ const uid = () => `f${++serial}`;
  * @param {{ label: string, control: HTMLElement, hint?: string, id?: string, required?: boolean }} r
  */
 export function row({ label, control, hint, id, required = false }) {
-  return h("div", { class: "kp-formgrid__row" },
+  return h("div", { class: "kp-formgrid__row", "data-kp-row": "", "data-kp-name": label },
     h("label", { class: "kp-formgrid__label", for: id }, label, required ? h("span", { class: "kp-field__required" }, " required") : null),
     h("div", { class: "kp-formgrid__control" }, control, h("span", { class: "kp-field__error", "data-kp-field-error": "", hidden: true })),
     hint ? h("p", { class: "kp-formgrid__value" }, hint) : null);
@@ -29,14 +29,18 @@ export function text({ name, label, value = "", hint, required, multiline, list,
   return row({ label, control: input, hint, id, required });
 }
 
-/** A date with the package's picker; value ISO in, `dataset.kpDateValue` (ISO) out. @param {{ name: string, label: string, value?: string | null, hint?: string }} o */
-export function date({ name, label, value, hint }) {
-  const id = uid();
-  const picker = h("div", { class: "kp-datepicker", "data-kp-datepicker": "", lang: "en-GB", "data-name": name },
+/** The package's date picker alone (ISO in, `dataset.kpDateValue` out); `max` is the last day it accepts. @param {{ name: string, label: string, id: string, value?: string | null, max?: string }} o */
+export function datePicker({ name, label, id, value, max }) {
+  return h("div", { class: "kp-datepicker", "data-kp-datepicker": "", lang: "en-GB", "data-name": name, "data-kp-max": max },
     h("input", { class: "kp-field__input", id, type: "text", inputmode: "numeric", "data-kp-date-input": "", placeholder: "dd/mm/yyyy", "aria-label": label, value: value ? formatDate(value) : null }),
     h("button", { type: "button", class: "kp-button", "data-kp-date-open": "", "aria-label": `Open the calendar for ${label}`, title: "Open the calendar" }, h("span", { "aria-hidden": "true" }, "▦")),
     h("div", { class: "kp-datepicker__panel", "data-kp-date-panel": "", hidden: true }));
-  return row({ label, control: picker, hint, id });
+}
+
+/** A date row of a form; value ISO in, ISO out. @param {{ name: string, label: string, value?: string | null, hint?: string }} o */
+export function date({ name, label, value, hint }) {
+  const id = uid();
+  return row({ label, control: datePicker({ name, label, id, value }), hint, id });
 }
 
 /** The ISO value of a named date picker in `scope`, or null. @param {ParentNode} scope @param {string} name */

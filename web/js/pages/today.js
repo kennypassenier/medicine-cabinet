@@ -7,6 +7,7 @@ import { longDay, nowParam } from "../clock.js";
 import { onTick } from "../ticker.js";
 import { dataCard, pageHeader, reportError, linkButton } from "../ui.js";
 import { takeOne } from "../dose.js";
+import { undoable } from "../undo.js";
 import { renderNext, renderSchedule } from "./today-doses.js";
 import { renderAttention, attentionBand } from "./today-attention.js";
 import { renderAsNeeded } from "./today-asneeded.js";
@@ -88,7 +89,8 @@ async function log(t, d, status) {
     draw(t);
   }
   try {
-    await api.logIntake({ medicineId: d.medicine_id, status, plannedFor: plannedToday(d.time), dose: d.dose });
+    const { id } = await api.logIntake({ medicineId: d.medicine_id, status, plannedFor: plannedToday(d.time), dose: d.dose });
+    undoable(`${d.medicine_name} ${status}.`, { undo: () => api.undoIntake(id), failed: `Could not undo ${d.medicine_name}.`, after: () => void load(t) });
   } catch (e) {
     reportError(`Could not record ${d.medicine_name}.`, e);
   }

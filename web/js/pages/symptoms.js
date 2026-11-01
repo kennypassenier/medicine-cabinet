@@ -6,17 +6,18 @@ import { h } from "../dom.js";
 import { api } from "../api.js";
 import { chips } from "../controls.js";
 import { takeOne } from "../dose.js";
-import { onTick } from "../ticker.js";
+import { onTick, REFRESH_EVENT } from "../ticker.js";
 import { dataCard, linkButton, pageHeader, reportError } from "../ui.js";
 import { resultRow } from "./symptoms-rows.js";
 import { createManager } from "./symptom-manage.js";
+import { UNCATEGORISED } from "./symptom-categories.js";
 
 const TYPING_MS = 250;
-const NO_CATEGORY = "Other";
+
 
 /** The suggestion chips as form-grid rows: the category in the label column, its symptoms as chips that can be pressed off again. */
 function suggestionRows(/** @type {any[]} */ symptoms, /** @type {any[]} */ categories, /** @type {string} */ symptom, /** @type {(v: string) => void} */ pick) {
-  const groups = [...categories.map((c) => [c.name, c.id]), [NO_CATEGORY, null]];
+  const groups = [...categories.map((c) => [c.name, c.id]), [UNCATEGORISED, null]];
   const rows = groups.map(([name, id]) => [name, symptoms.filter((s) => s.category_id === id)]).filter(([, list]) => list.length);
   return rows.map(([name, list]) => h("div", { class: "kp-formgrid__row" },
     h("span", { class: "kp-formgrid__label" }, name),
@@ -32,7 +33,7 @@ function suggestionRows(/** @type {any[]} */ symptoms, /** @type {any[]} */ cate
  * }} Finder
  */
 
-/** Build the page skeleton into `root`. @param {HTMLElement} root @param {string} symptom @param {{ run: () => void, reload: () => Promise<void> }} on */
+/** Build the page skeleton into `root`. @param {HTMLElement} root @param {string} symptom @param {{ run: () => void, reload: () => Promise<void>, edited: () => void }} on */
 function buildLayout(root, symptom, on) {
   const input = /** @type {HTMLInputElement} */ (h("input", { class: "kp-field__input", type: "search", id: "find-q", autocomplete: "off", placeholder: "e.g. headache, fever, hay fever", value: symptom }));
   const suggest = h("div", { class: "kp-formgrid" },
@@ -47,7 +48,7 @@ function buildLayout(root, symptom, on) {
   const lack = dataCard({ id: "lack", title: "Not available", description: "They match, but cannot be used right now.", onRetry: on.run });
   have.card.dataset.kpSpan = "7";
   lack.card.dataset.kpSpan = "5";
-  const manager = createManager({ reload: on.reload });
+  const manager = createManager({ reload: on.reload, edited: on.edited });
   const head = pageHeader({ title: "Symptoms", description: "Say what is wrong and see which medicine in your cabinet can help. Keep your symptoms and their categories tidy below." });
   root.append(head, h("div", { class: "kp-ops__body" }, box, have.card, lack.card, ...manager.cards));
   return { input, suggest, have, lack, manager };
@@ -123,7 +124,7 @@ export function mount(root) {
   /** @type {Finder} */
   const s = {
     symptom, seq: 0, alive: true, timer: 0, known: { symptoms: [], categories: [] },
-    ui: buildLayout(root, symptom, { run: () => void run(s), reload: () => load(s) }),
+    ui: buildLayout(root, symptom, { run: () => void run(s), reload: () => load(s), edited: () => drawChips(s) }),
   };
   const { input, manager } = s.ui;
   input.addEventListener("input", () => {
@@ -134,6 +135,9 @@ export function mount(root) {
   void load(s);
   void run(s);
   const stop = onTick(() => (s.symptom ? run(s, true) : undefined));
+  // An Undo (a symptom or category brought back) reloads the lists; a timer must not, it would redraw rows under a field being edited.
+  const again = () => { if (!root.contains(document.activeElement) || document.activeElement === document.body) void load(s); };
+  window.addEventListener(REFRESH_EVENT, again);
   input.focus();
-  return () => { s.alive = false; clearTimeout(s.timer); stop(); manager.stop(); };
+  return () => { s.alive = false; clearTimeout(s.timer); stop(); window.removeEventListener(REFRESH_EVENT, again); manager.stop(); };
 }

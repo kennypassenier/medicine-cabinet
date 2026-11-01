@@ -60,9 +60,9 @@ export function dataCard({ id, title, description, actions = [], className = "",
   return { card, data, state };
 }
 
-/** A button. @param {string} label @param {{ look?: string, onClick?: (e: Event) => void, key?: string, title?: string, label?: string }} [o] */
-export function button(label, { look = "", onClick, key, title, label: aria } = {}) {
-  return h("button", { type: "button", class: `kp-button ${look}`.trim(), "data-key": key, title, "aria-label": aria, onclick: onClick }, label);
+/** A button. @param {string} label @param {{ look?: string, onClick?: (e: Event) => void, key?: string, title?: string, label?: string, role?: string }} [o] `role` names what the button does for layout (`data-mc-role`) */
+export function button(label, { look = "", onClick, key, title, label: aria, role } = {}) {
+  return h("button", { type: "button", class: `kp-button ${look}`.trim(), "data-key": key, "data-mc-role": role, title, "aria-label": aria, onclick: onClick }, label);
 }
 
 /** A link styled as a button. @param {string} label @param {string} href @param {string} [look] */

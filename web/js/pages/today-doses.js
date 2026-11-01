@@ -38,8 +38,8 @@ function actions(d, on) {
   }
   const early = d.state === "upcoming";
   return h("div", { class: "kp-row-actions" },
-    button("Skip", { look: "kp-button--ghost", key: `skip-${k}`, onClick: () => on.skip(d), label: `Skip ${d.medicine_name} at ${d.time}` }),
-    button(early ? "Take early" : "Take", { look: early ? "" : "kp-button--primary", key: `take-${k}`, onClick: () => on.take(d), label: `Take ${d.medicine_name} at ${d.time}` }));
+    button("Skip", { look: "kp-button--ghost", role: "skip", key: `skip-${k}`, onClick: () => on.skip(d), label: `Skip ${d.medicine_name} at ${d.time}` }),
+    button(early ? "Take early" : "Take", { look: early ? "" : "kp-button--primary", role: "take", key: `take-${k}`, onClick: () => on.take(d), label: `Take ${d.medicine_name} at ${d.time}` }));
 }
 
 /** @param {any} d @param {Map<number, any>} meds @param {DoseHandlers} on */
@@ -74,7 +74,7 @@ export function renderNext(into, doses, meds, on) {
     h("strong", { class: "kp-kpi__value" }, d.medicine_name),
     h("p", { class: "kp-lede" }, qty(d.dose, unitOf(meds, d))),
     h("p", { class: "kp-lede" }, when, same ? ` · ${same} more at the same time` : ""),
-    h("div", { class: "kp-row kp-mt-sm" },
-      button("Skip", { look: "kp-button--lg kp-flex-1", key: "next-skip", onClick: () => on.skip(d) }),
-      button(early ? "Take early" : "Take now", { look: "kp-button--primary kp-button--lg kp-flex-1", key: "next-take", onClick: () => on.take(d) }))));
+    h("div", { class: "kp-row kp-mt-sm", "data-mc-hero-actions": "" },
+      button("Skip", { look: "kp-button--ghost kp-button--lg kp-flex-1", role: "skip", key: "next-skip", onClick: () => on.skip(d) }),
+      button(early ? "Take early" : "Take now", { look: "kp-button--primary kp-button--lg kp-flex-1", role: "take", key: "next-take", onClick: () => on.take(d) }))));
 }

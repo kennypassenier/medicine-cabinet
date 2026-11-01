@@ -8,7 +8,7 @@ import { h } from "../dom.js";
 import { chipsMulti } from "../controls.js";
 import { row } from "./form-fields.js";
 
-const OTHER = "Other";
+const OTHER = "Uncategorised";
 const BOX_ID = "symptoms-box";
 
 /** The tag input. @param {string[]} chosen @param {string[]} names */

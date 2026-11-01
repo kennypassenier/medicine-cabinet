@@ -35,14 +35,14 @@ export const wire = (scope) => attachQuantities(scope);
 export const stepperValue = (root) => getQuantity(root);
 
 /**
- * The package's switch with its label.
+ * The package's switch with its label; an empty `label` draws the switch alone (then `name` is its accessible name).
  * @param {{ label: string, checked: boolean, onChange: (on: boolean, input: HTMLInputElement) => void, key?: string, id?: string, describedby?: string, name?: string }} o
  */
 export function toggle({ label, checked, onChange, key, id, describedby, name }) {
   const input = /** @type {HTMLInputElement} */ (h("input", { class: "kp-switch__input", type: "checkbox", role: "switch", id, "data-key": key, "aria-describedby": describedby, "aria-label": name }));
   input.checked = checked;
   input.addEventListener("change", () => onChange(input.checked, input));
-  return h("label", { class: "kp-switch", "data-kp-switch-state": "none" }, input, h("span", null, label));
+  return h("label", { class: "kp-switch", "data-kp-switch-state": "none" }, input, label ? h("span", null, label) : null);
 }
 
 /**

@@ -32,6 +32,6 @@ export function renderAsNeeded(into, meds, take) {
         h("a", { class: "kp-listrow__name", href: `/medicine/${m.id}` }, m.name),
         h("span", { class: "kp-listrow__meta" }, [m.purpose, `${qty(m.stock, m.stock_unit)} left`].filter(Boolean).join(" · "))),
       h("div", { class: "kp-listrow__status" }, h("div", { class: "kp-badges" }, ...statusBadges(m))),
-      h("div", { class: "kp-listrow__stepper" }, btn));
+      h("div", { class: "kp-listrow__stepper kp-stack kp-gap-xs" }, btn, why ? h("span", { class: "kp-text-muted", "data-mc-reason": "" }, why) : null));
   })));
 }

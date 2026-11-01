@@ -1,45 +1,40 @@
 // The "Form" field of the medicine form: one pill per form, at most one
-// chosen (a chosen pill pressed again means no form), plus the way to manage the list. Choosing a form
-// fills the stock unit while the unit is empty or was filled this way.
+// chosen (a chosen pill pressed again means no form), plus a link to Settings, where the forms are managed.
+// Choosing a form fills the stock unit while the unit is empty or was filled this way. A mirror field lets the
+// unsaved-changes bar see the choice.
 
 import { h } from "../dom.js";
 import { chips } from "../controls.js";
-import { button } from "../ui.js";
+import { linkButton } from "../ui.js";
+import { mirror } from "./form-mirror.js";
 import { row } from "./form-fields.js";
-import { openFormsManager } from "./forms-manage.js";
 
 /**
- * @param {{ forms: any[], formId: number | null, onPick: (form: any | null) => void, onReloaded: (forms: any[]) => void, reload: () => Promise<any[]> }} o
+ * @param {{ forms: any[], formId: number | null, onPick: (form: any | null) => void }} o
  * @returns {{ row: HTMLElement, value: () => number | null }}
  */
-export function formPills({ forms, formId, onPick, onReloaded, reload }) {
-  let list = forms;
+export function formPills({ forms, formId, onPick }) {
   let chosen = formId;
   const slot = h("div");
+  const bar = mirror({ kind: "form", read: () => (chosen === null ? "" : String(chosen)), write: (v) => { chosen = v ? Number(v) : null; draw(); } });
 
   function draw() {
-    if (chosen !== null && !list.some((f) => f.id === chosen)) chosen = null;
+    if (chosen !== null && !forms.some((f) => f.id === chosen)) chosen = null;
     slot.replaceChildren(chips({
       label: "Form",
       value: chosen === null ? "" : String(chosen),
       none: true,
-      options: list.map((f) => /** @type {[string, string]} */ ([String(f.id), f.name])),
+      options: forms.map((f) => /** @type {[string, string]} */ ([String(f.id), f.name])),
       onChange: (v) => {
         chosen = v ? Number(v) : null;
-        onPick(list.find((f) => f.id === chosen) ?? null);
+        onPick(forms.find((f) => f.id === chosen) ?? null);
+        bar.sync();
       },
     }));
   }
 
-  async function manage() {
-    if (!(await openFormsManager())) return;
-    list = await reload();
-    draw();
-    onReloaded(list);
-  }
-
   draw();
-  const r = row({ label: "Form", control: slot, hint: "Pick how it comes. Choosing one fills the unit." });
-  r.append(h("div", { class: "kp-formgrid__actions" }, button("Manage forms", { onClick: () => void manage() })));
+  const r = row({ label: "Form", control: h("div", null, slot, bar.input), hint: "Pick how it comes. Choosing one fills the unit." });
+  r.append(h("div", { class: "kp-formgrid__actions" }, linkButton("Manage forms", "/settings")));
   return { row: r, value: () => chosen };
 }

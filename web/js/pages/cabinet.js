@@ -6,11 +6,11 @@ import { h, redraw } from "../dom.js";
 import { api } from "../api.js";
 import { wire } from "../controls.js";
 import { onTick } from "../ticker.js";
-import { button, dataCard, pageHeader, reportError, linkButton, say } from "../ui.js";
+import { dataCard, pageHeader, reportError, linkButton } from "../ui.js";
 import { medicineRow } from "./cabinet-row.js";
 import { drawFilterChips, readView, syncUrl, visibleMedicines } from "./cabinet-filters.js";
 import { createStockEditor } from "./cabinet-stock.js";
-import { openFormsManager } from "./forms-manage.js";
+import { undoable } from "../undo.js";
 
 /**
  * Everything the page's functions share.
@@ -20,9 +20,9 @@ import { openFormsManager } from "./forms-manage.js";
  * }} Cabinet
  */
 
-/** Build the page skeleton into `root`. @param {HTMLElement} root @param {string} query @param {{ manageForms: () => void, load: () => void }} on */
+/** Build the page skeleton into `root`. @param {HTMLElement} root @param {string} query @param {{ load: () => void }} on */
 function buildLayout(root, query, on) {
-  const header = pageHeader({ title: "Cabinet", description: "Everything you keep at home. Switch a medicine off to hide its schedule everywhere.", actions: [button("Manage forms", { onClick: on.manageForms }), linkButton("Add medicine", "/medicine/new", "kp-button--primary")] });
+  const header = pageHeader({ title: "Cabinet", description: "Everything you keep at home. Switch a medicine off to hide its schedule everywhere.", actions: [linkButton("Manage forms", "/settings"), linkButton("Add medicine", "/medicine/new", "kp-button--primary")] });
   const search = /** @type {HTMLInputElement} */ (h("input", { class: "kp-field__input kp-toolbar__input", type: "search", id: "cab-q", placeholder: "Name, purpose or symptom", "aria-label": "Search medicines", autocomplete: "off", value: query }));
   const filterSlot = h("div", { class: "kp-toolbar__group", role: "group", "aria-label": "Show" });
   const formSlot = h("div", { class: "kp-toolbar__group", role: "group", "aria-label": "Form" });
@@ -83,14 +83,15 @@ async function load(/** @type {Cabinet} */ c) {
   }
 }
 
-/** Switch a medicine on or off: show it at once, roll back when the server refuses. @param {Cabinet} c @param {any} m @param {boolean} on */
+/** Switch a medicine on or off at once (rolled back when the server refuses) and offer Undo. @param {Cabinet} c @param {any} m @param {boolean} on */
 async function setActive(c, m, on) {
   m.active = on;
   draw(c);
   try {
     const updated = await api.setActive(m.id, on);
     Object.assign(m, updated);
-    say(`${m.name} switched ${on ? "on" : "off"}${m.slots.length ? ` (its schedule ${on ? "is back" : "is hidden"})` : ""}.`);
+    const note = m.slots.length ? ` Its schedule ${on ? "is back" : "is hidden"}.` : "";
+    undoable(`${m.name} switched ${on ? "on" : "off"}.${note}`, { undo: () => api.setActive(m.id, !on), failed: `Could not switch ${m.name} back ${on ? "off" : "on"}.`, after: () => void load(c) });
   } catch (e) {
     reportError(`Could not switch ${m.name} ${on ? "on" : "off"}.`, e);
     m.active = !on;
@@ -106,7 +107,7 @@ export function mount(root) {
   /** @type {Cabinet} */
   const c = {
     view, meds: [], loaded: false, alive: true,
-    ui: buildLayout(root, view.query, { manageForms: () => void manageForms(c), load: () => void load(c) }),
+    ui: buildLayout(root, view.query, { load: () => void load(c) }),
     stock: createStockEditor({ reload: () => load(c), onSaved: (idle) => { drawFilters(c); if (idle) draw(c); } }),
   };
   c.ui.search.addEventListener("input", () => {
@@ -123,8 +124,4 @@ export function mount(root) {
     stop();
     c.stock.stop();
   };
-}
-
-async function manageForms(/** @type {Cabinet} */ c) {
-  if (await openFormsManager()) await load(c);
 }

@@ -1,14 +1,12 @@
 // The cards of the medicine form, one builder each: about, symptoms, when,
-// stock, dates and delete. The unit field and the "when" slot keep a little
-// state of their own, so they come as small controllers.
+// stock, dates and delete. The unit field keeps a little state of its own, so
+// it comes as a small controller (the "when" card is in form-when.js).
 
-import { attachWeekdays, attachTimes, attachRowEditors } from "/static/kp/dist/kp-themes.min.js";
 import { h } from "../dom.js";
-import { stepper, wire } from "../controls.js";
+import { stepper } from "../controls.js";
 import { button } from "../ui.js";
 import { date, row, section, text } from "./form-fields.js";
-import { readSlots, scheduleSection } from "./form-schedule.js";
-import { COMMON_UNITS } from "./forms-manage.js";
+import { COMMON_UNITS } from "../units.js";
 
 /**
  * The stock unit: a text field with a datalist of the known units. It follows
@@ -53,31 +51,6 @@ export function aboutSection(med, formRow) {
 export const helpsSection = (symptomRow) =>
   section({ id: "helps", title: "Symptoms", description: "What you take it for. These power the Symptoms page.", rows: [symptomRow] });
 
-/**
- * The "when to take it" card, redrawn when the as-needed switch flips; its
- * time fields, weekday pickers, quantities and row editor are attached anew each time.
- * @param {Parameters<typeof scheduleSection>[0]} model
- */
-export function createWhenSlot(model) {
-  const live = { editor: /** @type {HTMLElement | null} */ (null) };
-  /** The card on the page now; a redraw swaps it for the new one, so the card stays a direct child of the page's grid. @type {HTMLElement | null} */
-  let card = null;
-  /** @type {(() => void)[]} */
-  let detach = [];
-  const stop = () => detach.forEach((d) => d());
-  const draw = () => {
-    stop();
-    const next = scheduleSection(model, draw, live);
-    card?.replaceWith(next);
-    card = next;
-    wire(next);
-    detach = [attachWeekdays(next), attachTimes(next), attachRowEditors(next)];
-  };
-  /** The slots to save: what the editor's rows hold now. */
-  const read = () => (live.editor ? readSlots(live.editor) : model.slots);
-  return { get el() { return /** @type {HTMLElement} */ (card); }, draw, stop, read };
-}
-
 /** @param {any | null} med @param {{ unit: string }} model @param {HTMLElement} unitRow */
 export function stockSection(med, model, unitRow) {
   return section({ id: "stock", title: "Stock", description: "What is left, and when to be warned.", rows: [
@@ -97,8 +70,8 @@ export function datesSection(med) {
   ] });
 }
 
-/** The delete card of an existing medicine. @param {any} med @param {() => void} onDelete */
+/** The delete card of an existing medicine: it deletes at once, and the medicine stays restorable. @param {any} med @param {() => void} onDelete */
 export function dangerSection(med, onDelete) {
-  return section({ id: "danger", title: "Delete", description: "Removes this medicine and its schedule. Switch it off in the cabinet instead to keep its history.", span: 12, rows: [
-    row({ label: "Permanently", control: button(`Delete ${med.name}`, { look: "kp-button--destructive", onClick: onDelete }) })] });
+  return section({ id: "danger", title: "Delete", description: "Removes this medicine from the cabinet and its schedule. Undo right after deleting brings it back; the server keeps it for 14 days.", span: 12, rows: [
+    row({ label: "Delete", control: button(`Delete ${med.name}`, { look: "kp-button--destructive", onClick: onDelete }), hint: "It stays restorable for 14 days." })] });
 }

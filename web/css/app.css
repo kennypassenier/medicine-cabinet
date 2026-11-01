@@ -3,3 +3,28 @@
 
 /* The theme picker sits at the end of the top bar. */
 .mc-tools { display: inline-grid; grid-auto-flow: column; align-items: center; margin-inline-start: auto; }
+
+/* The page column is 80% of the window: the package's width knob counts the padding too, so the padding is added to it. */
+.kp-ops {
+  --kp-ops-pad-inline: clamp(var(--kp-space-md, 1rem), 3vw, var(--kp-space-xl, 2rem));
+  --kp-ops-width: max(calc(80vw + 2 * var(--kp-ops-pad-inline)), 64rem);
+}
+
+/* On a phone the bottom tab bar is the only navigation: the top bar keeps the brand and the theme picker. */
+@media (max-width: 40rem) {
+  .kp-nav__links { display: none; }
+}
+
+/* Doses on a phone: Take comes first and fills the line, Skip is the quiet button under it; both are at least 44 px high. */
+@media (max-width: 40rem) {
+  .kp-action-list .kp-row-actions [data-mc-role="take"],
+  [data-mc-hero-actions] [data-mc-role="take"] { order: -1; }
+  .kp-action-list .kp-row-actions .kp-button,
+  [data-mc-hero-actions] .kp-button { min-block-size: 2.75rem; inline-size: 100%; justify-self: stretch; }
+  [data-mc-hero-actions] { display: grid; grid-template-columns: minmax(0, 1fr); }
+}
+
+/* Category pills with a menu each: the pill on the left, its three dots on the right, one category per line. */
+[data-mc-pills] { display: grid; grid-auto-flow: row; grid-template-columns: minmax(0, 1fr) auto; inline-size: 100%; align-items: center; gap: var(--kp-space-sm, 0.5rem); }
+[data-mc-pills] > .kp-segmented__item { justify-self: start; }
+[data-mc-pills] > [data-mc-solo] { grid-column: 1 / -1; }
