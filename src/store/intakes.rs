@@ -89,6 +89,20 @@ pub struct IntakeEdit {
     pub note: String,
 }
 
+/// The medicine, status and dose of one intake; a missing row is "not found",
+/// any other database failure stays a database failure.
+fn intake_row(tx: &Transaction, id: i64) -> Result<(i64, String, f64), Error> {
+    tx.query_row(
+        "SELECT medicine_id, status, dose FROM intakes WHERE id = ?1",
+        [id],
+        |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+    )
+    .map_err(|e| match e {
+        chassis::storage::rusqlite::Error::QueryReturnedNoRows => not_found("intake", id),
+        other => db_err(other),
+    })
+}
+
 /// Correct the time, dose or note of an intake; a changed dose moves the stock.
 pub fn edit(tx: &Transaction, id: i64, e: &IntakeEdit) -> Result<(), Error> {
     if e.dose <= 0.0 {
@@ -97,12 +111,7 @@ pub fn edit(tx: &Transaction, id: i64, e: &IntakeEdit) -> Result<(), Error> {
             "enter the amount that was taken",
         ));
     }
-    let row: Result<(i64, String, f64), _> = tx.query_row(
-        "SELECT medicine_id, status, dose FROM intakes WHERE id = ?1",
-        [id],
-        |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
-    );
-    let (medicine_id, status, old_dose) = row.map_err(|_| not_found("intake", id))?;
+    let (medicine_id, status, old_dose) = intake_row(tx, id)?;
     tx.execute(
         "UPDATE intakes SET taken_at = ?2, dose = ?3, note = ?4 WHERE id = ?1",
         params![id, e.taken_at, e.dose, e.note],
@@ -116,12 +125,7 @@ pub fn edit(tx: &Transaction, id: i64, e: &IntakeEdit) -> Result<(), Error> {
 
 /// Undo an intake: a taken dose goes back into the stock.
 pub fn undo(tx: &Transaction, id: i64) -> Result<(), Error> {
-    let row: Result<(i64, String, f64), _> = tx.query_row(
-        "SELECT medicine_id, status, dose FROM intakes WHERE id = ?1",
-        [id],
-        |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
-    );
-    let (medicine_id, status, dose) = row.map_err(|_| not_found("intake", id))?;
+    let (medicine_id, status, dose) = intake_row(tx, id)?;
     tx.execute("DELETE FROM intakes WHERE id = ?1", [id])
         .map_err(db_err)?;
     if status == "taken" {
