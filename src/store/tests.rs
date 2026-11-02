@@ -205,3 +205,8 @@ fn deleting_a_form_reports_its_medicines_and_recreating_sets_it_again() {
     forms::create(&tx, &gone.name, &gone.unit, &gone.medicine_ids).unwrap();
     assert_eq!(medicines::get(&tx, id, today()).unwrap().form, "Tablet");
 }
+
+mod intakes_more;
+mod lists_more;
+mod logs_more;
+mod medicines_more;

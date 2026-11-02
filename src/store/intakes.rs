@@ -44,13 +44,17 @@ pub fn record(tx: &Transaction, i: &IntakeInput) -> Result<i64, Error> {
             "use 'taken' or 'skipped'",
         ));
     }
-    let exists: bool = tx
-        .query_row(
-            "SELECT 1 FROM medicines WHERE id = ?1",
-            [i.medicine_id],
-            |_| Ok(true),
-        )
-        .unwrap_or(false);
+    // A soft-deleted medicine is gone for logging purposes; a real database
+    // failure must surface rather than read as "no such medicine".
+    let exists = match tx.query_row(
+        "SELECT 1 FROM medicines WHERE id = ?1 AND deleted_at IS NULL",
+        [i.medicine_id],
+        |_| Ok(()),
+    ) {
+        Ok(()) => true,
+        Err(chassis::storage::rusqlite::Error::QueryReturnedNoRows) => false,
+        Err(e) => return Err(db_err(e)),
+    };
     if !exists {
         return Err(not_found("medicine", i.medicine_id));
     }
@@ -133,7 +137,7 @@ pub fn list(conn: &Connection, prefix: &str, limit: i64) -> Result<Vec<Intake>, 
         .prepare(
             "SELECT i.id, i.medicine_id, m.name, i.taken_at, i.planned_for, i.status, i.dose, i.note
              FROM intakes i JOIN medicines m ON m.id = i.medicine_id
-             WHERE m.deleted_at IS NULL AND i.taken_at LIKE ?1 || '%' ORDER BY i.taken_at DESC LIMIT ?2",
+             WHERE m.deleted_at IS NULL AND substr(i.taken_at, 1, length(?1)) = ?1 ORDER BY i.taken_at DESC LIMIT ?2",
         )
         .map_err(db_err)?;
     let rows = stmt
