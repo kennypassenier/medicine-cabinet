@@ -7,7 +7,7 @@ import { attachThemePickers, themeMenuMarkup } from "/static/kp/dist/kp-themes.m
 import { attachSegmented, attachAttention, attachSkipLinks, applyStoredCalm } from "/static/kp/dist/kp-themes.min.js";
 import { h } from "./dom.js";
 import { route } from "./routes.js";
-import { dataCard, linkButton, reportError } from "./ui.js";
+import { button, dataCard, linkButton, reportError } from "./ui.js";
 import { drawShell, markNav } from "./shell.js";
 import { mayLeave } from "./leave.js";
 
@@ -22,8 +22,10 @@ let seq = 0;
 
 /** @param {string} href */
 export async function navigate(href) {
-  if (!(await mayLeave())) return;
   const url = new URL(href, location.href);
+  if (!(await mayLeave())) return;
+  // The screen on show: it is drawn again (the "Reload" of a failed screen), without a second history entry.
+  if (url.href === location.href) return void render();
   if (url.origin !== location.origin || !route(trimPath(url.pathname), url.search)) return void location.assign(href);
   history.pushState(null, "", href);
   shown = location.href;
@@ -69,7 +71,9 @@ async function render() {
 /** The plate for a screen that cannot be drawn at all: an empty card in the page body. */
 function plate(title, text, label, href) {
   const card = dataCard({ id: "plate", title });
-  card.state("empty", { title, text, action: linkButton(label, label === "Reload" ? location.pathname : href, "kp-button--primary") });
+  // A module that failed to load stays failed for this document, so "Reload" is a real page reload.
+  const action = label === "Reload" ? button(label, { look: "kp-button--primary", onClick: () => location.reload() }) : linkButton(label, href, "kp-button--primary");
+  card.state("empty", { title, text, action });
   return h("div", { class: "kp-ops__body" }, card.card);
 }
 

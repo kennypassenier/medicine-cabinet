@@ -28,3 +28,11 @@
 [data-mc-pills] { display: grid; grid-auto-flow: row; grid-template-columns: minmax(0, 1fr) auto; inline-size: 100%; align-items: center; gap: var(--kp-space-sm, 0.5rem); }
 [data-mc-pills] > .kp-segmented__item { justify-self: start; }
 [data-mc-pills] > [data-mc-solo] { grid-column: 1 / -1; }
+
+/* Long unbroken text (a 60-letter name, a pasted address) wraps inside its cell instead of widening the page. */
+.kp-listrow__identity,
+.kp-action-list > li > :first-child { min-inline-size: 0; }
+.kp-listrow__identity,
+.kp-listrow__identity *,
+.kp-action-list > li > :first-child,
+.kp-action-list > li > :first-child * { overflow-wrap: anywhere; }
