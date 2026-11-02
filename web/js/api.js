@@ -55,7 +55,9 @@ async function failure(res) {
   } catch {
     // Not JSON: the framework's plain-text refusal, shown as it is.
   }
-  return new ApiError(text.trim() || `The server answered ${res.status}.`, "Check the entries and try again.", res.status);
+  // A plain-text body is shown only for a short client refusal; a 5xx body (panic text, a proxy's HTML page) never reaches a toast.
+  const plain = res.status < 500 && text.trim().length <= 200 ? text.trim() : "";
+  return new ApiError(plain || `The server answered ${res.status}.`, "Check the entries and try again.", res.status);
 }
 
 export const api = {
