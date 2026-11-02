@@ -11,7 +11,7 @@ import { wire } from "../controls.js";
 import { setChangeCount } from "../leave.js";
 import { undoable } from "../undo.js";
 import { refreshNow } from "../ticker.js";
-import { dataCard, linkButton, pageHeader, reportError, say } from "../ui.js";
+import { dataCard, errorText, linkButton, pageHeader, reportError, say } from "../ui.js";
 import { blankModel, modelOf, readBody } from "./form-body.js";
 import { symptomField } from "./form-symptoms.js";
 import { formPills } from "./form-pills.js";
@@ -23,7 +23,7 @@ import { aboutSection, dangerSection, datesSection, helpsSection, stockSection, 
  * @typedef {{
  *   root: HTMLElement, id: number | null, navigate: (href: string) => void, alive: boolean,
  *   holder: ReturnType<typeof dataCard>, pills: ReturnType<typeof formPills> | null,
- *   when: ReturnType<typeof createWhen> | null, bar: HTMLElement | null, detach: (() => void)[]
+ *   when: ReturnType<typeof createWhen> | null, bar: HTMLElement | null, detach: (() => void)[], deleting: boolean, saving: boolean
  * }} MedicinePage
  */
 
@@ -33,7 +33,7 @@ async function start(p) {
     const [med, known, forms] = await Promise.all([p.id ? api.medicine(p.id) : null, api.symptoms(), api.forms()]);
     if (p.alive) build(p, med, known, forms);
   } catch (e) {
-    if (p.alive) p.holder.state("error", { title: "The medicine could not be loaded", text: e instanceof Error ? e.message : String(e) });
+    if (p.alive) p.holder.state("error", { title: "The medicine could not be loaded", text: errorText(e) });
   }
 }
 
@@ -59,6 +59,9 @@ function wireBar(p, form, bar, forms) {
   p.detach.push(attachUnsaved(p.root, { show: wordsFor(forms) }));
   markUnsavedClean(bar);
   setChangeCount(() => unsaved(bar)?.changes().length ?? 0);
+  // Pressing a bar button blurs the field being edited, the bar then redraws its own label and the press lands on a new node:
+  // the first click on Save after typing was swallowed. Keeping the focus where it is lets the click through.
+  bar.addEventListener("mousedown", (e) => { if (/** @type {HTMLElement} */ (e.target).closest("button")) e.preventDefault(); });
   bar.addEventListener(UNSAVED_SAVE_EVENT, () => form.requestSubmit());
   bar.addEventListener(UNSAVED_LEAVE_EVENT, (e) => {
     e.preventDefault();
@@ -93,6 +96,8 @@ function build(p, med, known, forms) {
 
 /** @param {MedicinePage} p @param {HTMLFormElement} form @param {any} model @param {HTMLElement} tags @param {any} med */
 async function save(p, form, model, tags, med) {
+  if (p.saving) return; // a double tap on Save must not add the medicine twice
+  p.saving = true;
   try {
     if (!model.asNeeded && p.when) model.slots = p.when.read();
     const body = readBody(form, model, tags, p.pills?.value() ?? null);
@@ -101,6 +106,7 @@ async function save(p, form, model, tags, med) {
     say(`${saved.name} ${med ? "saved" : "added to the cabinet"}.`);
     p.navigate("/cabinet");
   } catch (e) {
+    p.saving = false;
     if (p.bar) setUnsavedSaving(p.bar, false);
     reportError("Could not save the medicine.", e);
   }
@@ -108,9 +114,12 @@ async function save(p, form, model, tags, med) {
 
 /** Delete at once (a soft delete the server keeps for 14 days) and offer Undo. @param {MedicinePage} p @param {any} med */
 async function remove(p, med) {
+  if (p.deleting) return;
+  p.deleting = true;
   try {
     await api.remove(med.id);
   } catch (e) {
+    p.deleting = false;
     return reportError(`Could not delete ${med.name}.`, e);
   }
   if (p.bar) markUnsavedClean(p.bar);
@@ -124,7 +133,7 @@ export function mount(root, { params, navigate }) {
   document.title = `${id ? "Edit" : "Add"} medicine · Medicine cabinet`;
   /** @type {MedicinePage} */
   const p = {
-    root, id, navigate, alive: true, pills: null, when: null, bar: null, detach: [],
+    root, id, navigate, alive: true, pills: null, when: null, bar: null, detach: [], deleting: false, saving: false,
     holder: dataCard({ id: "load", title: id ? "Loading the medicine" : "New medicine", onRetry: () => start(p) }),
   };
   p.holder.card.dataset.kpSpan = "12";
