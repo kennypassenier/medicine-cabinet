@@ -7,7 +7,7 @@ import { api } from "../api.js";
 import { chips } from "../controls.js";
 import { takeOne } from "../dose.js";
 import { onTick, REFRESH_EVENT } from "../ticker.js";
-import { dataCard, linkButton, pageHeader, reportError } from "../ui.js";
+import { dataCard, linkButton, pageHeader, errorText, reportError } from "../ui.js";
 import { resultRow } from "./symptoms-rows.js";
 import { createManager } from "./symptom-manage.js";
 import { UNCATEGORISED } from "./symptom-categories.js";
@@ -43,7 +43,7 @@ function buildLayout(root, symptom, on) {
   const box = h("section", { class: "kp-card", "aria-labelledby": "find-t", "data-kp-span": "12" },
     h("div", { class: "kp-card__header" }, h("h2", { class: "kp-card__title", id: "find-t" }, "What's bothering you?")),
     h("p", { class: "kp-card__body" }, "Type a symptom or pick one. You see which medicine at home can help."),
-    suggest);
+    suggest, h("p", { class: "kp-sr-only", role: "status", id: "find-status" }));
   const have = dataCard({ id: "have", title: "You have these", description: "In stock, switched on and in date.", onRetry: on.run });
   const lack = dataCard({ id: "lack", title: "Not available", description: "They match, but cannot be used right now.", onRetry: on.run });
   have.card.dataset.kpSpan = "7";
@@ -78,9 +78,18 @@ function fill(card, list, usable, empty, again) {
   card.state("ready");
 }
 
+/** Say the answer out loud for a screen reader: the cards below the field change without moving the focus. @param {string} symptom @param {{ usable: any[], unavailable: any[] }} r */
+function announce(symptom, r) {
+  const n = r.usable.length;
+  const text = n ? `${n} ${n === 1 ? "medicine" : "medicines"} at home can help with ${symptom}.` : `Nothing at home is available for ${symptom}.`;
+  const el = document.getElementById("find-status");
+  if (el && el.textContent !== text) el.textContent = text;
+}
+
 /** Show a search answer in both cards. @param {Finder} s @param {{ usable: any[], unavailable: any[] }} r */
 function showResults(s, r) {
   const again = () => void run(s, true);
+  announce(s.symptom.trim(), r);
   fill(s.ui.have, r.usable, true, { title: `Nothing in your cabinet for “${s.symptom}”`, text: r.unavailable.length ? "Something matches, but it cannot be used right now (see Not available)." : "Add a medicine and list this symptom under “Helps with”.", action: linkButton("Add a medicine", "/medicine/new") }, again);
   fill(s.ui.lack, r.unavailable, false, { title: "Everything that matches is available", text: "Nothing is out of stock, expired or switched off for this symptom." }, again);
 }
@@ -97,7 +106,7 @@ async function run(s, quiet = false) {
     showResults(s, r);
   } catch (e) {
     if (!s.alive || mine !== s.seq) return;
-    for (const c of [s.ui.have, s.ui.lack]) c.state("error", { title: "The search failed", text: e instanceof Error ? e.message : String(e) });
+    for (const c of [s.ui.have, s.ui.lack]) c.state("error", { title: "The search failed", text: errorText(e) });
     reportError("The search failed.", e);
   }
 }
@@ -112,7 +121,7 @@ async function load(s) {
     s.ui.manager.draw(s.known);
   } catch (e) {
     if (!s.alive) return;
-    s.ui.manager.fail(e instanceof Error ? e.message : String(e));
+    s.ui.manager.fail(errorText(e));
     reportError("The symptoms could not be loaded.", e);
   }
 }
@@ -138,6 +147,7 @@ export function mount(root) {
   // An Undo (a symptom or category brought back) reloads the lists; a timer must not, it would redraw rows under a field being edited.
   const again = () => { if (!root.contains(document.activeElement) || document.activeElement === document.body) void load(s); };
   window.addEventListener(REFRESH_EVENT, again);
-  input.focus();
+  // On a phone the keyboard would cover the page the moment it opens: the field is only focused where there is a hardware keyboard.
+  if (!matchMedia("(pointer: coarse)").matches) input.focus();
   return () => { s.alive = false; clearTimeout(s.timer); stop(); window.removeEventListener(REFRESH_EVENT, again); manager.stop(); };
 }

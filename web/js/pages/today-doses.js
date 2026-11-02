@@ -34,12 +34,12 @@ const unitOf = (/** @type {Map<number, any>} */ meds, /** @type {any} */ d) => m
 function actions(d, on) {
   const k = doseKey(d);
   if (d.state === "taken" || d.state === "skipped") {
-    return h("div", { class: "kp-row-actions" }, button("Undo", { key: `undo-${k}`, onClick: () => on.undo(d), label: `Undo ${d.medicine_name} at ${d.time}` }));
+    return h("div", { class: "kp-row-actions" }, button("Undo", { key: `take-${k}`, onClick: () => on.undo(d), label: `Undo ${d.medicine_name} at ${d.time}` }));
   }
   const early = d.state === "upcoming";
   return h("div", { class: "kp-row-actions" },
     button("Skip", { look: "kp-button--ghost", role: "skip", key: `skip-${k}`, onClick: () => on.skip(d), label: `Skip ${d.medicine_name} at ${d.time}` }),
-    button(early ? "Take early" : "Take", { look: early ? "" : "kp-button--primary", role: "take", key: `take-${k}`, onClick: () => on.take(d), label: `Take ${d.medicine_name} at ${d.time}` }));
+    button(early ? "Take early" : "Take", { look: early ? "" : "kp-button--primary", role: "take", key: `take-${k}`, onClick: () => on.take(d), label: `${early ? "Take early" : "Take"} ${d.medicine_name} at ${d.time}` }));
 }
 
 /** @param {any} d @param {Map<number, any>} meds @param {DoseHandlers} on */
@@ -75,6 +75,6 @@ export function renderNext(into, doses, meds, on) {
     h("p", { class: "kp-lede" }, qty(d.dose, unitOf(meds, d))),
     h("p", { class: "kp-lede" }, when, same ? ` · ${same} more at the same time` : ""),
     h("div", { class: "kp-row kp-mt-sm", "data-mc-hero-actions": "" },
-      button("Skip", { look: "kp-button--ghost kp-button--lg kp-flex-1", role: "skip", key: "next-skip", onClick: () => on.skip(d) }),
-      button(early ? "Take early" : "Take now", { look: "kp-button--primary kp-button--lg kp-flex-1", role: "take", key: "next-take", onClick: () => on.take(d) }))));
+      button("Skip", { look: "kp-button--ghost kp-button--lg kp-flex-1", role: "skip", key: "next-skip", onClick: () => on.skip(d), label: `Skip ${d.medicine_name} at ${d.time}` }),
+      button(early ? "Take early" : "Take now", { look: "kp-button--primary kp-button--lg kp-flex-1", role: "take", key: "next-take", onClick: () => on.take(d), label: `${early ? "Take early" : "Take now"} ${d.medicine_name} at ${d.time}` }))));
 }

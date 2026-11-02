@@ -24,6 +24,7 @@ export function renderAsNeeded(into, meds, take) {
     const btn = button("I took one", { look: `kp-w-full ${why ? "" : "kp-button--primary"}`.trim(), key: `need-${m.id}`, onClick: () => take(m), label: `I took one ${m.name}` });
     if (why) {
       btn.setAttribute("aria-disabled", "true");
+      btn.setAttribute("aria-describedby", `need-why-${m.id}`);
       btn.setAttribute("data-kp-disabled-reason", why);
       btn.disabled = true;
     }
@@ -32,6 +33,6 @@ export function renderAsNeeded(into, meds, take) {
         h("a", { class: "kp-listrow__name", href: `/medicine/${m.id}` }, m.name),
         h("span", { class: "kp-listrow__meta" }, [m.purpose, `${qty(m.stock, m.stock_unit)} left`].filter(Boolean).join(" · "))),
       h("div", { class: "kp-listrow__status" }, h("div", { class: "kp-badges" }, ...statusBadges(m))),
-      h("div", { class: "kp-listrow__stepper kp-stack kp-gap-xs" }, btn, why ? h("span", { class: "kp-text-muted", "data-mc-reason": "" }, why) : null));
+      h("div", { class: "kp-listrow__stepper kp-stack kp-gap-xs" }, btn, why ? h("span", { class: "kp-text-muted", id: `need-why-${m.id}`, "data-mc-reason": "" }, why) : null));
   })));
 }

@@ -44,5 +44,5 @@ export function medicineRow(m, on) {
       h("span", { class: "kp-listrow__meta" }, scheduleLine(m)),
       h("div", { class: "kp-badges" }, ...statusBadges(m))),
     h("div", { class: "kp-listrow__stepper" }, stepper({ label: `Stock of ${m.name}`, value: m.stock, min: 0, unit: m.stock_unit, key: `stock-${m.id}`, onChange: (v) => on.step(m, v) })),
-    h("div", { class: "kp-listrow__switch" }, toggle({ label: "", name: `${m.name} is switched on`, checked: m.active, key: `switch-${m.id}`, onChange: (checked) => on.setActive(m, checked) })));
+    h("div", { class: "kp-listrow__switch" }, toggle({ label: "", name: `Active: ${m.name}`, checked: m.active, key: `switch-${m.id}`, onChange: (checked) => on.setActive(m, checked) })));
 }

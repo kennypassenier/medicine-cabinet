@@ -12,10 +12,13 @@ const uid = () => `f${++serial}`;
  * @param {{ label: string, control: HTMLElement, hint?: string, id?: string, required?: boolean }} r
  */
 export function row({ label, control, hint, id, required = false }) {
+  const hintId = hint && id ? `${id}-hint` : undefined;
+  const field = id ? control.querySelector(`#${id}`) ?? (control.id === id ? control : null) : null;
+  if (hintId) field?.setAttribute("aria-describedby", hintId);
   return h("div", { class: "kp-formgrid__row", "data-kp-row": "", "data-kp-name": label },
     h("label", { class: "kp-formgrid__label", for: id }, label, required ? h("span", { class: "kp-field__required" }, " required") : null),
     h("div", { class: "kp-formgrid__control" }, control, h("span", { class: "kp-field__error", "data-kp-field-error": "", hidden: true })),
-    hint ? h("p", { class: "kp-formgrid__value" }, hint) : null);
+    hint ? h("p", { class: "kp-formgrid__value", id: hintId }, hint) : null);
 }
 
 /** @param {{ name: string, label: string, value?: string, hint?: string, required?: boolean, multiline?: boolean, list?: string, placeholder?: string, maxlength?: number }} o */

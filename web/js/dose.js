@@ -13,11 +13,16 @@ import { reportError } from "./ui.js";
 /** The dose logged for an as-needed medicine: the schedule has no slot to say, so one unit. */
 export const AS_NEEDED_DOSE = 1;
 
+/** The server counts in bare minutes ("0 minutes ago; wait 360 more"); the dialog speaks in hours and minutes. @param {string} reason */
+function readable(reason) {
+  return reason.replace(/was (\d+) minutes? ago; wait \d+ more\./, (_, n) => (Number(n) === 0 ? "was just now." : `was ${duration(Number(n))} ago.`));
+}
+
 /** The sentence under "Too soon", from the guard's own reason and wait. @param {any} med @param {any} check */
 function refusal(med, check) {
   const wait = check.wait_minutes ? `Safe again in ${duration(check.wait_minutes)}.` : "";
   return h("div", null,
-    h("p", null, check.reason ?? `The limit for ${med.name} has been reached.`),
+    h("p", null, check.reason ? readable(check.reason) : `The limit for ${med.name} has been reached.`),
     wait ? h("p", null, h("strong", null, wait)) : null,
     h("p", null, "Taking it anyway is your decision; it will be logged like any other dose."));
 }
