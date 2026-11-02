@@ -99,6 +99,7 @@ export function addRow({ label, hint, accept, fields, onAdd }) {
   });
   const go = h("button", { type: "button", class: "kp-button kp-button--primary" }, accept);
   async function submit() {
+    if (go.hasAttribute("aria-busy")) return; // a double tap must not send the entry twice
     const values = Object.fromEntries(inputs.map(({ f, el }) => [f.name, el.value.trim()]));
     const missing = inputs.find(({ f, el }) => f.required && !el.value.trim());
     if (missing) { err.textContent = `${missing.f.label} is required. Fill it in, then press ${accept}.`; err.hidden = false; return missing.el.focus(); }
@@ -120,5 +121,5 @@ export function addRow({ label, hint, accept, fields, onAdd }) {
   const grid = h("div", { class: "kp-autogrid kp-autogrid--tight", style: "--kp-autogrid-min: 11rem; --kp-autogrid-pad: 0" }, ...inputs.map(({ el: i }) => i), go);
   const el = h("div", { class: "kp-stack kp-gap-xs", role: "group", "aria-labelledby": `${id}-t` },
     h("strong", { id: `${id}-t` }, label), grid, ...inputs.map(({ list }) => list), err, h("p", { class: "kp-field__help kp-m-0" }, hint));
-  return { el };
+  return { el, focus: () => inputs[0].el.focus() };
 }

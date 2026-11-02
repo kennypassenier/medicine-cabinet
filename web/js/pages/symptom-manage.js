@@ -16,7 +16,7 @@ import { drawCategoryPills, UNCATEGORISED } from "./symptom-categories.js";
  * The manager's shared state.
  * @typedef {{
  *   data: { symptoms: any[], categories: any[] }, filter: string, detach: (() => void)[], reload: () => Promise<void>, edited: () => void,
- *   cats: ReturnType<typeof dataCard>, syms: ReturnType<typeof dataCard>, pillHost: HTMLElement, pillError: HTMLElement, symHost: HTMLElement, addSymHost: HTMLElement
+ *   cats: ReturnType<typeof dataCard>, syms: ReturnType<typeof dataCard>, addCat: { focus: () => void }, addSym?: { focus: () => void }, pillHost: HTMLElement, pillError: HTMLElement, symHost: HTMLElement, addSymHost: HTMLElement
  * }} Manager
  */
 
@@ -41,6 +41,7 @@ async function removeCategory(m, c) {
   }
   if (m.filter === String(c.id)) m.filter = "all";
   await m.reload();
+  m.addCat.focus(); // the row that had the focus is gone: the keyboard goes to the next stable place
   const n = gone.was.symptom_ids.length;
   undoable(`${c.name} deleted.${n ? ` ${plural(n, "symptom is", "symptoms are")} now uncategorised.` : ""}`, { undo: () => api.addCategory(gone.was.name, gone.was.symptom_ids), failed: `Could not bring ${c.name} back.`, after: refreshNow });
 }
@@ -54,6 +55,7 @@ async function removeSymptom(m, s) {
     return reportError(`Could not delete ${s.name}.`, e);
   }
   await m.reload();
+  m.addSym?.focus(); // the row that had the focus is gone: the keyboard goes to the next stable place
   const n = gone.was.medicine_ids.length;
   undoable(`${s.name} deleted.${n ? ` ${plural(n, "medicine no longer helps", "medicines no longer help")} with it.` : ""}`, { undo: () => api.addSymptom(gone.was), failed: `Could not bring ${s.name} back.`, after: refreshNow });
 }
@@ -65,7 +67,7 @@ function drawCategories(m) {
   const stop = drawCategoryPills(m.pillHost, {
     categories, symptoms, filter: m.filter,
     onFilter: (v) => { m.filter = v; drawSymptoms(m); },
-    rename: async (c, name) => { await api.editCategory(c.id, name); pillFail(m, ""); await m.reload(); },
+    rename: async (c, name) => { await api.editCategory(c.id, name); pillFail(m, ""); await m.reload(); m.pillHost.querySelector(`[data-value="${c.id}"]`)?.focus(); },
     remove: (c) => void removeCategory(m, c),
     fail: (text) => pillFail(m, text),
   });
@@ -93,11 +95,12 @@ function symptomRow(m, s) {
 /** The symptom add row (name and category) above the table. @param {Manager} m */
 function drawAddSymptom(m) {
   const options = /** @type {[string, string][]} */ ([["", UNCATEGORISED], ...m.data.categories.map((c) => [String(c.id), c.name])]);
-  const { el } = addRow({
+  const { el, focus } = addRow({
     label: "Add a symptom", hint: "Name what you take medicine for and where it is listed.", accept: "Add symptom",
     fields: [{ name: "name", label: "Name of the new symptom", placeholder: "e.g. headache", required: true }, { name: "category", label: "Category of the new symptom", kind: "select", options }],
     onAdd: async (v) => { await api.addSymptom({ name: v.name, category_id: v.category ? Number(v.category) : null }); await m.reload(); },
   });
+  m.addSym = { focus };
   m.addSymHost.replaceChildren(el);
   m.detach.push(activate(m.addSymHost));
 }
@@ -129,7 +132,7 @@ function buildManager(reload, edited) {
     data: { symptoms: [], categories: [] }, filter: "all", detach: [], reload, edited,
     cats: dataCard({ id: "cats", title: "Categories", description: "A pill only filters the symptoms. Use the ⋯ menu beside a category to rename or delete it.", onRetry: () => reload() }),
     syms: dataCard({ id: "syms", title: "Symptoms", description: "Everything you can search for or list on a medicine. Edit a name or category in place; it is saved when you leave the field.", onRetry: () => reload() }),
-    pillHost: h("div"), pillError: h("p", { class: "kp-field__error", role: "alert", hidden: true }), symHost: h("div"), addSymHost: h("div"),
+    pillHost: h("div"), pillError: h("p", { class: "kp-field__error", role: "alert", hidden: true }), symHost: h("div"), addSymHost: h("div"), addCat: { focus() {} },
   };
   m.cats.card.dataset.kpSpan = "4";
   m.syms.card.dataset.kpSpan = "8";
@@ -140,6 +143,7 @@ function buildManager(reload, edited) {
     fields: [{ name: "name", label: "Name of the new category", placeholder: "e.g. Head", required: true }],
     onAdd: async (v) => { await api.addCategory(v.name); await reload(); },
   });
+  m.addCat = addCat;
   m.cats.data.append(h("div", { class: "kp-stack" }, m.pillHost, m.pillError, addCat.el));
   return m;
 }

@@ -36,6 +36,7 @@ async function remove(s, f) {
     return reportError(`Could not delete ${f.name}.`, e);
   }
   await load(s);
+  s.add.focus(); // the row that had the focus is gone: the keyboard goes to the next stable place
   const n = gone.was.medicine_ids.length;
   const note = n ? ` ${n} ${n === 1 ? "medicine keeps" : "medicines keep"} no form.` : "";
   undoable(`${f.name} deleted.${note}`, { undo: () => api.addForm(gone.was), failed: `Could not bring ${f.name} back.`, after: refreshNow });
