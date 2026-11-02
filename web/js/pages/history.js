@@ -9,7 +9,7 @@ import { friendlyDate } from "../clock.js";
 import { chips, wire } from "../controls.js";
 import { onTick } from "../ticker.js";
 import { undoable } from "../undo.js";
-import { button, dataCard, linkButton, pageHeader, reportError } from "../ui.js";
+import { button, dataCard, linkButton, pageHeader, errorText, reportError } from "../ui.js";
 import { historyRow } from "./history-row.js";
 import { addEarlierDose } from "./history-add.js";
 
@@ -88,7 +88,7 @@ async function load(p) {
     draw(p);
   } catch (e) {
     if (!p.alive) return;
-    if (!p.loaded) p.ui.card.state("error", { title: "The history could not be loaded", text: e instanceof Error ? e.message : String(e) });
+    if (!p.loaded) p.ui.card.state("error", { title: "The history could not be loaded", text: errorText(e) });
     else reportError("The history could not be refreshed.", e);
   }
 }
@@ -100,8 +100,13 @@ const relog = (i) =>
 /** Remove an entry at once (the stock comes back), put it back when the server refuses, and offer Undo. @param {HistoryPage} p @param {any} i */
 async function remove(p, i) {
   const before = p.items;
+  const buttons = () => [...p.ui.card.data.querySelectorAll("[data-key^='remove-']")];
+  const at = buttons().findIndex((b) => /** @type {HTMLElement} */ (b).dataset.key === `remove-${i.id}`);
   p.items = p.items.filter((x) => x.id !== i.id);
   draw(p);
+  // The row (and the button that was pressed) is gone: the focus goes to the entry that took its place, else to the title.
+  const next = /** @type {HTMLElement | undefined} */ (buttons()[at] ?? buttons()[at - 1]);
+  (next ?? document.getElementById("page-title"))?.focus({ preventScroll: true });
   try {
     await api.undoIntake(i.id);
   } catch (e) {

@@ -11,7 +11,7 @@ import { wire } from "../controls.js";
 import { setChangeCount } from "../leave.js";
 import { undoable } from "../undo.js";
 import { refreshNow } from "../ticker.js";
-import { dataCard, linkButton, pageHeader, reportError, say } from "../ui.js";
+import { dataCard, linkButton, pageHeader, errorText, reportError, say } from "../ui.js";
 import { blankModel, modelOf, readBody } from "./form-body.js";
 import { symptomField } from "./form-symptoms.js";
 import { formPills } from "./form-pills.js";
@@ -33,7 +33,7 @@ async function start(p) {
     const [med, known, forms] = await Promise.all([p.id ? api.medicine(p.id) : null, api.symptoms(), api.forms()]);
     if (p.alive) build(p, med, known, forms);
   } catch (e) {
-    if (p.alive) p.holder.state("error", { title: "The medicine could not be loaded", text: e instanceof Error ? e.message : String(e) });
+    if (p.alive) p.holder.state("error", { title: "The medicine could not be loaded", text: errorText(e) });
   }
 }
 
@@ -84,6 +84,7 @@ function build(p, med, known, forms) {
   p.root.replaceChildren(
     pageHeader({ title: med ? med.name : "Add a medicine", description: med ? "Change anything, then save. Stock here replaces the current count." : "Fill in what you know. Only the name is required; you can edit everything later.", actions: [cancel, bar] }),
     form, ...(danger ? [h("div", { class: "kp-ops__body" }, danger)] : []));
+  if (document.activeElement === p.root) document.getElementById("page-title")?.focus({ preventScroll: true });
   wire(form);
   p.detach.push(attachForms(p.root, { wrapper: ".kp-formgrid__row" }), attachComboboxes(form), attachDatePickers(form));
   p.detach.push(sym.wire());

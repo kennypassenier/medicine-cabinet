@@ -6,7 +6,7 @@ import { h, redraw } from "../dom.js";
 import { api } from "../api.js";
 import { wire } from "../controls.js";
 import { onTick } from "../ticker.js";
-import { dataCard, pageHeader, reportError, linkButton } from "../ui.js";
+import { dataCard, pageHeader, errorText, reportError, linkButton } from "../ui.js";
 import { medicineRow } from "./cabinet-row.js";
 import { drawFilterChips, readView, syncUrl, visibleMedicines } from "./cabinet-filters.js";
 import { createStockEditor } from "./cabinet-stock.js";
@@ -78,7 +78,7 @@ async function load(/** @type {Cabinet} */ c) {
     draw(c);
   } catch (e) {
     if (!c.alive) return;
-    if (!c.loaded) c.ui.list.state("error", { title: "The cabinet could not be loaded", text: e instanceof Error ? e.message : String(e) });
+    if (!c.loaded) c.ui.list.state("error", { title: "The cabinet could not be loaded", text: errorText(e) });
     else reportError("The cabinet could not be refreshed.", e);
   }
 }
