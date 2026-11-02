@@ -13,6 +13,8 @@ use crate::store::medicines::Medicine;
 pub const REORDER_LEAD_DAYS: i64 = 7;
 /// Nothing further ahead than this is planned.
 const HORIZON_DAYS: i64 = 120;
+/// Longest run-out prediction, in days (about 270 years).
+const MAX_RUN_OUT_DAYS: f64 = 100_000.0;
 
 /// One all-day event, in the shape the hub's ingest takes.
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -55,7 +57,9 @@ pub fn run_out_date(m: &Medicine, today: Date) -> Option<Date> {
     if !m.active || m.as_needed || per_day <= 0.0 || m.stock <= 0.0 {
         return None;
     }
-    Some(today.plus_days((m.stock / per_day).floor() as i64))
+    // Clamped: a tiny dose against a big stock must not overflow the date maths.
+    let days = (m.stock / per_day).floor().min(MAX_RUN_OUT_DAYS);
+    Some(today.plus_days(days as i64))
 }
 
 fn within_horizon(date: Date, today: Date) -> bool {
@@ -158,6 +162,19 @@ mod tests {
     fn stock_prediction_follows_the_schedule() {
         // 30 capsules at one a day last 30 days.
         assert_eq!(run_out_date(&med(), today()).unwrap().iso(), "2026-11-29");
+    }
+
+    #[test]
+    fn a_huge_stock_with_a_tiny_dose_cannot_overflow_the_date_maths() {
+        let mut m = med();
+        m.stock = 1_000_000.0;
+        m.slots[0].dose = 1e-300;
+        let far = run_out_date(&m, today()).unwrap();
+        assert!(far.year < 3000);
+        assert!(
+            wanted_events(&[m], today()).is_empty(),
+            "beyond the horizon"
+        );
     }
 
     #[test]

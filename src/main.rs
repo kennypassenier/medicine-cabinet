@@ -10,6 +10,7 @@
 mod agenda;
 mod api;
 mod attention;
+mod clock;
 mod config;
 mod dayplan;
 mod domain;
@@ -66,8 +67,10 @@ async fn main() -> std::process::ExitCode {
     #[cfg(debug_assertions)]
     seed::spawn(db.clone());
     reminders::spawn(db.clone(), app.notifier(), reminder_config);
-    if let Some(hub) = config::hub_from_env() {
-        agenda::spawn(db.clone(), hub, reminder_config);
+    match config::hub_from_env() {
+        Ok(Some(hub)) => agenda::spawn(db.clone(), hub, reminder_config),
+        Ok(None) => {}
+        Err(e) => return fail(e),
     }
     app.dashboard_routes(api::router(db));
     app.webapp(WebApp::embedded(embedded::FILES));
