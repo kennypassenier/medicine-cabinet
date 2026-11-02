@@ -2,12 +2,12 @@
 // cabinet (what you have / what is not available) with suggestion chips
 // grouped by category; below it the symptoms and categories are managed.
 
-import { h } from "../dom.js";
+import { h, redraw } from "../dom.js";
 import { api } from "../api.js";
 import { chips } from "../controls.js";
 import { takeOne } from "../dose.js";
 import { onTick, REFRESH_EVENT } from "../ticker.js";
-import { dataCard, linkButton, pageHeader, reportError } from "../ui.js";
+import { dataCard, errorText, linkButton, pageHeader, reportError } from "../ui.js";
 import { resultRow } from "./symptoms-rows.js";
 import { createManager } from "./symptom-manage.js";
 import { UNCATEGORISED } from "./symptom-categories.js";
@@ -60,7 +60,8 @@ function idle(/** @type {Finder} */ s) {
 }
 
 function drawChips(/** @type {Finder} */ s) {
-  s.ui.suggest.replaceChildren(s.ui.suggest.firstElementChild, ...suggestionRows(s.known.symptoms, s.known.categories, s.symptom, (v) => pick(s, v)));
+  // The chip that has the focus is found again by its key, so a pick by keyboard keeps the keyboard's place.
+  redraw(s.ui.suggest, () => s.ui.suggest.replaceChildren(s.ui.suggest.firstElementChild, ...suggestionRows(s.known.symptoms, s.known.categories, s.symptom, (v) => pick(s, v))));
 }
 
 /** @param {Finder} s @param {string} v */
@@ -87,7 +88,7 @@ function showResults(s, r) {
 
 /** @param {Finder} s @param {boolean} [quiet] keep the screen as it is while loading */
 async function run(s, quiet = false) {
-  history.replaceState(null, "", s.symptom ? `?symptom=${encodeURIComponent(s.symptom)}` : location.pathname);
+  history.replaceState(null, "", s.symptom.trim() ? `?symptom=${encodeURIComponent(s.symptom.trim())}` : location.pathname);
   if (!s.symptom.trim()) return idle(s);
   const mine = ++s.seq;
   if (!quiet) for (const c of [s.ui.have, s.ui.lack]) c.state("loading");
@@ -97,7 +98,7 @@ async function run(s, quiet = false) {
     showResults(s, r);
   } catch (e) {
     if (!s.alive || mine !== s.seq) return;
-    for (const c of [s.ui.have, s.ui.lack]) c.state("error", { title: "The search failed", text: e instanceof Error ? e.message : String(e) });
+    for (const c of [s.ui.have, s.ui.lack]) c.state("error", { title: "The search failed", text: errorText(e) });
     reportError("The search failed.", e);
   }
 }
@@ -112,7 +113,7 @@ async function load(s) {
     s.ui.manager.draw(s.known);
   } catch (e) {
     if (!s.alive) return;
-    s.ui.manager.fail(e instanceof Error ? e.message : String(e));
+    s.ui.manager.fail(errorText(e));
     reportError("The symptoms could not be loaded.", e);
   }
 }

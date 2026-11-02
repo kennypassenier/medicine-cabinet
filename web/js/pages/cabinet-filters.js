@@ -23,7 +23,7 @@ export function readView() {
   const f = params.get("f");
   return {
     query: params.get("q") ?? "",
-    filter: /** @type {keyof typeof FILTERS} */ (f !== null && f in FILTERS ? f : "all"),
+    filter: /** @type {keyof typeof FILTERS} */ (f !== null && Object.hasOwn(FILTERS, f) ? f : "all"),
     formFilter: params.get("form") ?? "",
   };
 }
