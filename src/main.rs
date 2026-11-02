@@ -18,6 +18,8 @@ mod schema;
 #[cfg(debug_assertions)]
 mod seed;
 mod store;
+#[cfg(test)]
+mod testkit;
 
 use axum::Router;
 use chassis::shell::pages::Page;

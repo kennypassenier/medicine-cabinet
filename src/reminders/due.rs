@@ -134,3 +134,6 @@ mod tests {
         assert!(attention_reminders("2026-10-30", &[item], &sent).is_empty());
     }
 }
+
+#[cfg(test)]
+mod edge_tests;

@@ -32,6 +32,14 @@ fn is_usable(m: &Medicine) -> bool {
         && !m.course_over
 }
 
+/// The medicines whose symptoms contain `needle` (lowercase), split into
+/// those that can be taken now and those that cannot.
+fn partition_for(all: Vec<Medicine>, needle: &str) -> (Vec<Medicine>, Vec<Medicine>) {
+    all.into_iter()
+        .filter(|m| m.symptoms.iter().any(|s| s.contains(needle)))
+        .partition(is_usable)
+}
+
 pub async fn by_symptom(
     State(db): State<AppDb>,
     Query(q): Query<SearchQuery>,
@@ -40,13 +48,13 @@ pub async fn by_symptom(
     let needle = q.symptom.trim().to_lowercase();
     let wanted = needle.clone();
     let all = db.read(move |conn| medicines::list(conn, today)).await?;
-    let (usable, unavailable) = all
-        .into_iter()
-        .filter(|m| m.symptoms.iter().any(|s| s.contains(&wanted)))
-        .partition(is_usable);
+    let (usable, unavailable) = partition_for(all, &wanted);
     Ok(Json(SearchResult {
         symptom: needle,
         usable,
         unavailable,
     }))
 }
+
+#[cfg(test)]
+mod tests;
