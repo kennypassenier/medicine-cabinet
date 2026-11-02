@@ -113,6 +113,13 @@ const V6: &str = "
 ALTER TABLE medicines ADD COLUMN deleted_at TEXT;
 ";
 
+/// How much of a taken dose actually left the stock (it cannot go below
+/// zero), so undoing or editing the intake puts back exactly that much.
+/// Rows from before this column keep NULL and fall back to their dose.
+const V7: &str = "
+ALTER TABLE intakes ADD COLUMN deducted REAL;
+";
+
 pub fn migrations() -> Vec<Migration> {
     vec![
         Migration::sql(V1),
@@ -121,10 +128,11 @@ pub fn migrations() -> Vec<Migration> {
         Migration::sql(V4),
         Migration::sql(V5),
         Migration::sql(V6),
+        Migration::sql(V7),
     ]
 }
 
 /// Every migration's SQL, in order, for tests that run the stores against an
 /// in-memory database.
 #[cfg(test)]
-pub const ALL_SQL: [&str; 6] = [V1, V2, V3, V4, V5, V6];
+pub const ALL_SQL: [&str; 7] = [V1, V2, V3, V4, V5, V6, V7];

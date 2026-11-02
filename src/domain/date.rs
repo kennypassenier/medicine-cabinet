@@ -15,22 +15,37 @@ pub struct Date {
     pub day: u32,
 }
 
+/// The years the app accepts. Wide enough for any real expiry or intake,
+/// narrow enough that date arithmetic can never overflow.
+pub const YEAR_RANGE: std::ops::RangeInclusive<i32> = 1900..=2200;
+
 impl Date {
-    /// Parse `YYYY-MM-DD` (a trailing time part is ignored).
+    /// Parse a strict `YYYY-MM-DD`; a time part may follow after a `T` or a
+    /// space (`2026-10-30T08:00`) and is ignored here.
     pub fn parse(text: &str) -> Result<Self, Error> {
         let bad = || {
             Error::invalid(
-                format!("'{text}' is not a date"),
-                "use the form YYYY-MM-DD, for example 2026-10-30",
+                format!("'{}' is not a date", shown(text)),
+                "use the form YYYY-MM-DD, for example 2026-10-30, with a year from 1900 to 2200",
             )
         };
-        let head = text.get(..10).ok_or_else(bad)?;
-        let mut parts = head.split('-');
-        let (y, m, d) = (parts.next(), parts.next(), parts.next());
-        let year: i32 = y.and_then(|v| v.parse().ok()).ok_or_else(bad)?;
-        let month: u32 = m.and_then(|v| v.parse().ok()).ok_or_else(bad)?;
-        let day: u32 = d.and_then(|v| v.parse().ok()).ok_or_else(bad)?;
-        if !(1..=12).contains(&month) || day == 0 || day > days_in_month(year, month) {
+        let bytes = text.as_bytes();
+        let shaped = bytes.len() >= 10
+            && bytes[..10].iter().enumerate().all(|(i, b)| match i {
+                4 | 7 => *b == b'-',
+                _ => b.is_ascii_digit(),
+            })
+            && (bytes.len() == 10 || matches!(bytes[10], b'T' | b' '));
+        if !shaped {
+            return Err(bad());
+        }
+        let num = |range: std::ops::Range<usize>| text[range].parse::<u32>().map_err(|_| bad());
+        let (year, month, day) = (num(0..4)? as i32, num(5..7)?, num(8..10)?);
+        if !YEAR_RANGE.contains(&year)
+            || !(1..=12).contains(&month)
+            || day == 0
+            || day > days_in_month(year, month)
+        {
             return Err(bad());
         }
         Ok(Self { year, month, day })
@@ -88,18 +103,62 @@ fn days_in_month(year: i32, month: u32) -> u32 {
     }
 }
 
-/// Minutes since midnight from `HH:MM` (the time part of `YYYY-MM-DDTHH:MM`
-/// is accepted too).
+/// Cut user text down for an error message (never echo a megabyte back).
+fn shown(text: &str) -> String {
+    text.chars().take(40).collect()
+}
+
+/// Minutes since midnight from `HH:MM`, or from the time part of
+/// `YYYY-MM-DDTHH:MM` (seconds after it are ignored).
 pub fn parse_minutes(text: &str) -> Result<u32, Error> {
-    let t = text.rsplit(['T', ' ']).next().unwrap_or(text);
-    let bad = || Error::invalid(format!("'{text}' is not a time"), "use the form HH:MM");
-    let (h, m) = t.split_once(':').ok_or_else(bad)?;
-    let h: u32 = h.parse().map_err(|_| bad())?;
-    let m: u32 = m.get(..2).unwrap_or(m).parse().map_err(|_| bad())?;
+    let bad = || {
+        Error::invalid(
+            format!("'{}' is not a time", shown(text)),
+            "use the form HH:MM, for example 08:30",
+        )
+    };
+    let t = match text.len() {
+        5 => text,
+        n if n > 10 => text.get(11..).ok_or_else(bad)?,
+        _ => return Err(bad()),
+    };
+    let b = t.as_bytes();
+    let shaped = b.len() >= 5
+        && b[2] == b':'
+        && [0, 1, 3, 4].iter().all(|i| b[*i].is_ascii_digit())
+        && (b.len() == 5 || b[5] == b':');
+    if !shaped {
+        return Err(bad());
+    }
+    let (h, m): (u32, u32) = (
+        t[..2].parse().map_err(|_| bad())?,
+        t[3..5].parse().map_err(|_| bad())?,
+    );
     if h > 23 || m > 59 {
         return Err(bad());
     }
     Ok(h * 60 + m)
+}
+
+/// `HH:MM` for a minute of the day (the canonical form stored for slots).
+pub fn clock_text(minutes: u32) -> String {
+    format!("{:02}:{:02}", minutes / 60, minutes % 60)
+}
+
+/// Canonical `YYYY-MM-DDTHH:MM` from what the browser sent, or an error.
+pub fn parse_datetime(text: &str) -> Result<String, Error> {
+    let date = Date::parse(text)?;
+    if text.len() < 16 {
+        return Err(Error::invalid(
+            format!("'{}' has no time", shown(text)),
+            "use the form YYYY-MM-DDTHH:MM, for example 2026-10-30T08:30",
+        ));
+    }
+    Ok(format!(
+        "{}T{}",
+        date.iso(),
+        clock_text(parse_minutes(text)?)
+    ))
 }
 
 #[cfg(test)]
@@ -124,6 +183,62 @@ mod tests {
     fn rejects_impossible_dates() {
         assert!(Date::parse("2026-02-30").is_err());
         assert!(Date::parse("soon").is_err());
+    }
+
+    #[test]
+    fn rejects_sloppy_and_out_of_range_dates() {
+        for bad in [
+            "+202-10-30",
+            "2026-1-30x",
+            "2026-10-30garbage",
+            "-200-01-01",
+            "0000-01-01",
+            "9999-12-31",
+            "1899-12-31",
+            "２０２６-10-30",
+            "2026/10/30",
+            "",
+        ] {
+            assert!(Date::parse(bad).is_err(), "{bad} must be refused");
+        }
+        assert!(Date::parse("2026-10-30 08:00").is_ok());
+    }
+
+    #[test]
+    fn long_garbage_is_cut_in_the_error() {
+        let err = Date::parse(&"x".repeat(5000)).unwrap_err();
+        assert!(err.message.len() < 200);
+    }
+
+    #[test]
+    fn times_are_strict() {
+        for bad in [
+            "8:00",
+            "08:0",
+            "08:30abc",
+            "24:00",
+            "08:60",
+            "08-30",
+            "2026-10-30",
+            "2026-10-30T8:00",
+            "",
+        ] {
+            assert!(parse_minutes(bad).is_err(), "{bad} must be refused");
+        }
+        assert_eq!(parse_minutes("2026-10-30T21:05:33").unwrap(), 1265);
+    }
+
+    #[test]
+    fn datetimes_are_canonicalised() {
+        assert_eq!(
+            parse_datetime("2026-10-30 08:05").unwrap(),
+            "2026-10-30T08:05"
+        );
+        assert_eq!(
+            parse_datetime("2026-10-30T08:05:59").unwrap(),
+            "2026-10-30T08:05"
+        );
+        assert!(parse_datetime("2026-10-30").is_err());
     }
 
     #[test]

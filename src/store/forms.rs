@@ -5,6 +5,7 @@ use chassis::storage::rusqlite::{Connection, Transaction, params};
 use serde::Serialize;
 
 use super::{db_err, not_found};
+use crate::domain::limits;
 
 #[derive(Debug, Serialize)]
 pub struct Form {
@@ -19,7 +20,7 @@ pub fn list(conn: &Connection) -> Result<Vec<Form>, Error> {
     let mut stmt = conn
         .prepare(
             "SELECT f.id, f.name, f.unit, COUNT(m.id) FROM medicine_forms f
-             LEFT JOIN medicines m ON m.form_id = f.id
+             LEFT JOIN medicines m ON m.form_id = f.id AND m.deleted_at IS NULL
              GROUP BY f.id ORDER BY f.name COLLATE NOCASE",
         )
         .map_err(db_err)?;
@@ -37,14 +38,17 @@ pub fn list(conn: &Connection) -> Result<Vec<Form>, Error> {
 }
 
 fn clean(name: &str, unit: &str) -> Result<(String, String), Error> {
-    let name = name.trim().to_string();
+    let name = limits::text("the form name", name, limits::NAME_MAX, true)?;
     if name.is_empty() {
         return Err(Error::invalid(
             "a form needs a name",
             "fill in the name field",
         ));
     }
-    Ok((name, unit.trim().to_string()))
+    Ok((
+        name,
+        limits::text("the unit", unit, limits::UNIT_MAX, true)?,
+    ))
 }
 
 fn name_taken(e: chassis::storage::rusqlite::Error, name: &str) -> Error {
@@ -65,6 +69,7 @@ pub fn create(
     unit: &str,
     medicine_ids: &[i64],
 ) -> Result<i64, Error> {
+    limits::list_len("the medicine list", medicine_ids.len())?;
     let (name, unit) = clean(name, unit)?;
     tx.execute(
         "INSERT INTO medicine_forms (name, unit) VALUES (?1, ?2)",

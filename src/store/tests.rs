@@ -8,7 +8,7 @@ use crate::domain::medicine::MedicineInput;
 use crate::schema::ALL_SQL;
 use crate::store::intakes::{IntakeEdit, IntakeInput};
 
-fn db() -> Connection {
+pub(super) fn db() -> Connection {
     let conn = Connection::open_in_memory().expect("in-memory database");
     conn.execute_batch("PRAGMA foreign_keys = ON;")
         .expect("pragma");
@@ -18,11 +18,11 @@ fn db() -> Connection {
     conn
 }
 
-fn today() -> Date {
+pub(super) fn today() -> Date {
     Date::parse("2026-11-01").unwrap()
 }
 
-fn medicine(name: &str, stock: f64) -> MedicineInput {
+pub(super) fn medicine(name: &str, stock: f64) -> MedicineInput {
     MedicineInput {
         name: name.into(),
         purpose: String::new(),
@@ -44,7 +44,7 @@ fn medicine(name: &str, stock: f64) -> MedicineInput {
     }
 }
 
-fn taken(medicine_id: i64, at: &str, dose: f64) -> IntakeInput {
+pub(super) fn taken(medicine_id: i64, at: &str, dose: f64) -> IntakeInput {
     IntakeInput {
         medicine_id,
         taken_at: at.into(),

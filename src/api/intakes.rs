@@ -1,10 +1,11 @@
 //! Logging doses, undoing them and the as-needed dosing guard.
 
 use axum::Json;
-use axum::extract::{Path, Query, State};
+use axum::extract::State;
 use chassis::storage::AppDb;
 use serde::Deserialize;
 
+use super::extract::{ApiJson, ApiPath, ApiQuery};
 use super::{ApiResult, Clock};
 use crate::domain::date::Date;
 use crate::domain::schedule::{DoseVerdict, PastDose, check_dose};
@@ -18,8 +19,15 @@ pub struct ListQuery {
     limit: Option<i64>,
 }
 
-pub async fn list(State(db): State<AppDb>, Query(q): Query<ListQuery>) -> ApiResult<Vec<Intake>> {
-    let prefix = q.day.unwrap_or_default();
+pub async fn list(
+    State(db): State<AppDb>,
+    ApiQuery(q): ApiQuery<ListQuery>,
+) -> ApiResult<Vec<Intake>> {
+    // A day is validated, so no pattern text can reach the query.
+    let prefix = match q.day.as_deref().map(str::trim).filter(|d| !d.is_empty()) {
+        Some(day) => Date::parse(day)?.iso(),
+        None => String::new(),
+    };
     let limit = q.limit.unwrap_or(200).clamp(1, 1000);
     db.read(move |conn| intakes::list(conn, &prefix, limit))
         .await
@@ -28,9 +36,8 @@ pub async fn list(State(db): State<AppDb>, Query(q): Query<ListQuery>) -> ApiRes
 
 pub async fn record(
     State(db): State<AppDb>,
-    Json(input): Json<IntakeInput>,
+    ApiJson(input): ApiJson<IntakeInput>,
 ) -> ApiResult<serde_json::Value> {
-    Date::parse(&input.taken_at)?;
     let id = db.write(move |tx| intakes::record(tx, &input)).await?;
     Ok(Json(serde_json::json!({ "id": id })))
 }
@@ -38,15 +45,17 @@ pub async fn record(
 /// Correct the time, dose or note of a logged intake.
 pub async fn edit(
     State(db): State<AppDb>,
-    Path(id): Path<i64>,
-    Json(edit): Json<IntakeEdit>,
+    ApiPath(id): ApiPath<i64>,
+    ApiJson(edit): ApiJson<IntakeEdit>,
 ) -> ApiResult<serde_json::Value> {
-    Date::parse(&edit.taken_at)?;
     db.write(move |tx| intakes::edit(tx, id, &edit)).await?;
     Ok(Json(serde_json::json!({ "id": id })))
 }
 
-pub async fn undo(State(db): State<AppDb>, Path(id): Path<i64>) -> ApiResult<serde_json::Value> {
+pub async fn undo(
+    State(db): State<AppDb>,
+    ApiPath(id): ApiPath<i64>,
+) -> ApiResult<serde_json::Value> {
     db.write(move |tx| intakes::undo(tx, id)).await?;
     Ok(Json(serde_json::json!({ "undone": id })))
 }
@@ -54,8 +63,8 @@ pub async fn undo(State(db): State<AppDb>, Path(id): Path<i64>) -> ApiResult<ser
 /// May an as-needed medicine be taken right now?
 pub async fn dose_check(
     State(db): State<AppDb>,
-    Path(id): Path<i64>,
-    Query(c): Query<Clock>,
+    ApiPath(id): ApiPath<i64>,
+    ApiQuery(c): ApiQuery<Clock>,
 ) -> ApiResult<DoseVerdict> {
     let (today, minute) = (c.date()?, c.minute()?);
     let verdict = db

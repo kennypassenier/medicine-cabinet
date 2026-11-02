@@ -1,10 +1,11 @@
 //! The home screen: today's plan and what needs attention.
 
 use axum::Json;
-use axum::extract::{Query, State};
+use axum::extract::State;
 use chassis::storage::AppDb;
 use serde::Serialize;
 
+use super::extract::ApiQuery;
 use super::{ApiResult, Clock};
 use crate::attention::{Attention, attention_for};
 use crate::domain::plan::{PlannedDose, plan};
@@ -19,7 +20,10 @@ pub struct Overview {
     pub as_needed: Vec<Medicine>,
 }
 
-pub async fn overview(State(db): State<AppDb>, Query(c): Query<Clock>) -> ApiResult<Overview> {
+pub async fn overview(
+    State(db): State<AppDb>,
+    ApiQuery(c): ApiQuery<Clock>,
+) -> ApiResult<Overview> {
     let (today, minute) = (c.date()?, c.minute()?);
     let day = today.iso();
     let (all, logged) = db
