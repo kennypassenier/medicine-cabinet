@@ -19,7 +19,7 @@ const FILTERS = { all: "All", taken: "Taken", skipped: "Skipped" };
 /**
  * Everything the page's functions share.
  * @typedef {{
- *   items: any[], meds: Map<number, any>, limit: number, filter: keyof typeof FILTERS, detach: (() => void)[],
+ *   items: any[], meds: Map<number, any>, limit: number, filter: keyof typeof FILTERS, detach: (() => void)[], rows: () => void,
  *   loaded: boolean, alive: boolean, addSlot: HTMLElement, ui: ReturnType<typeof buildLayout>
  * }} HistoryPage
  */
@@ -53,14 +53,29 @@ function drawAdd(p) {
   p.detach.push(add.detach);
 }
 
+/** The filter chips with their counts; a pressed chip only redraws the list, so the chip keeps the focus. @param {HistoryPage} p */
+function drawChips(p) {
+  const { items, filter } = p;
+  const count = (/** @type {string} */ k) => (k === "all" ? items.length : items.filter((i) => i.status === k).length);
+  p.ui.filterSlot.replaceChildren(h("b", { class: "kp-toolbar__label" }, "Show"), chips({
+    label: "Show", value: filter, options: Object.entries(FILTERS).map(([k, t]) => [k, t, count(k)]),
+    onChange: (v) => { p.filter = /** @type {keyof typeof FILTERS} */ (v); drawList(p); },
+  }));
+}
+
 /** @param {HistoryPage} p */
 function draw(p) {
   if (!p.loaded) return;
   drawAdd(p);
-  const { filterSlot, card, more } = p.ui;
+  redraw(p.ui.filterSlot, () => drawChips(p));
+  drawList(p);
+}
+
+/** @param {HistoryPage} p */
+function drawList(p) {
+  const { card, more } = p.ui;
   const { items, filter } = p;
   const shown = items.filter((i) => filter === "all" || i.status === filter);
-  filterSlot.replaceChildren(h("b", { class: "kp-toolbar__label" }, "Show"), chips({ label: "Show", value: filter, options: Object.entries(FILTERS).map(([k, t]) => [k, t, k === "all" ? items.length : items.filter((i) => i.status === k).length]), onChange: (v) => { p.filter = /** @type {keyof typeof FILTERS} */ (v); draw(p); } }));
   more.hidden = items.length < p.limit;
   if (!shown.length) {
     return card.state("empty", items.length
@@ -70,9 +85,12 @@ function draw(p) {
   const on = { remove: (/** @type {any} */ i) => void remove(p, i), changed: () => void load(p) };
   const days = [...new Set(shown.map((i) => i.taken_at.slice(0, 10)))];
   redraw(card.data, () => {
+    p.rows();
     card.data.replaceChildren(h("div", { class: "kp-stack kp-gap-lg" }, ...days.map((d) => daySection(d, shown.filter((i) => i.taken_at.startsWith(d)), p.meds, on)), more));
     wire(card.data);
-    p.detach.push(attachTimes(card.data), attachSelects(card.data));
+    const times = attachTimes(card.data);
+    const selects = attachSelects(card.data);
+    p.rows = () => { times(); selects(); };
   });
   card.state("ready");
 }
@@ -123,7 +141,7 @@ export function mount(root) {
   document.title = "History · Medicine cabinet";
   /** @type {HistoryPage} */
   const p = {
-    items: [], meds: new Map(), limit: PAGE, filter: "all", loaded: false, alive: true, detach: [],
+    items: [], meds: new Map(), limit: PAGE, filter: "all", loaded: false, alive: true, detach: [], rows: () => {},
     ui: buildLayout(root, { reload: () => void load(p), more: () => { p.limit += PAGE; void load(p); } }),
     addSlot: /** @type {any} */ (null),
   };
@@ -131,5 +149,5 @@ export function mount(root) {
   void load(p);
   // A refresh must not redraw rows under a field that is being edited.
   const stop = onTick(() => (p.ui.card.data.contains(document.activeElement) && document.activeElement?.matches("input, select") ? undefined : load(p)));
-  return () => { p.alive = false; p.detach.forEach((d) => d()); stop(); };
+  return () => { p.alive = false; p.rows(); p.detach.forEach((d) => d()); stop(); };
 }

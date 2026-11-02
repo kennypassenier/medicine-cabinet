@@ -51,3 +51,11 @@
 @media (max-width: 40rem) {
   .kp-toolbar .kp-segmented--chips { flex-wrap: wrap; overflow: visible; }
 }
+
+/* Long unbroken text (a 60-letter name, a pasted address) wraps inside its cell instead of widening the page. */
+.kp-listrow__identity,
+.kp-action-list > li > :first-child { min-inline-size: 0; }
+.kp-listrow__identity,
+.kp-listrow__identity *,
+.kp-action-list > li > :first-child,
+.kp-action-list > li > :first-child * { overflow-wrap: anywhere; }

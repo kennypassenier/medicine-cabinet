@@ -15,7 +15,7 @@ import { renderAsNeeded } from "./today-asneeded.js";
 /**
  * Everything the page's functions share.
  * @typedef {{
- *   model: { today: any, meds: Map<number, any> } | null, loadedOnce: boolean, alive: boolean,
+ *   model: { today: any, meds: Map<number, any> } | null, loadedOnce: boolean, alive: boolean, busy: boolean,
  *   ui: ReturnType<typeof buildLayout>
  * }} TodayPage
  */
@@ -84,6 +84,10 @@ async function load(t, manual = false) {
 
 /** @param {TodayPage} t @param {any} d @param {"taken" | "skipped"} status */
 async function log(t, d, status) {
+  // The row (or the hero) shows the next dose in the same place the moment this one is recorded: a second tap of a
+  // double tap would record that one too. Taps wait until the server has answered.
+  if (t.busy) return;
+  t.busy = true;
   if (t.model) {
     d.state = status;
     draw(t);
@@ -93,19 +97,25 @@ async function log(t, d, status) {
     undoable(`${d.medicine_name} ${status}.`, { undo: () => api.undoIntake(id), failed: `Could not undo ${d.medicine_name}.`, after: () => void load(t) });
   } catch (e) {
     reportError(`Could not record ${d.medicine_name}.`, e);
+  } finally {
+    t.busy = false;
   }
   await load(t);
 }
 
 /** @param {TodayPage} t @param {any} d */
 async function undo(t, d) {
+  if (t.busy) return;
   if (!d.intake_id) return load(t);
+  t.busy = true;
   d.state = "due";
   draw(t);
   try {
     await api.undoIntake(d.intake_id);
   } catch (e) {
     reportError(`Could not undo ${d.medicine_name}.`, e);
+  } finally {
+    t.busy = false;
   }
   await load(t);
 }
@@ -115,7 +125,7 @@ export function mount(root) {
   document.title = "Today · Medicine cabinet";
   /** @type {TodayPage} */
   const t = {
-    model: null, loadedOnce: false, alive: true,
+    model: null, loadedOnce: false, alive: true, busy: false,
     ui: buildLayout(root, { reload: () => void load(t, true) }),
   };
   void load(t);

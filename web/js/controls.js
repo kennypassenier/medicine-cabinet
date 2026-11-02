@@ -52,7 +52,7 @@ export function toggle({ label, checked, onChange, key, id, describedby, name })
  */
 export function chips({ label, options, value, onChange, none = false }) {
   const group = h("div", { class: "kp-segmented kp-segmented--chips", "data-kp-segmented": none ? "single-or-none" : "single", role: "radiogroup", "aria-label": label },
-    ...options.map(([v, text, count]) => h("button", { type: "button", class: "kp-segmented__item", role: "radio", "data-value": v, "aria-checked": String(v === value) }, h("span", { class: "kp-segmented__label" }, text), count === undefined ? null : h("span", { class: "kp-segmented__count" }, String(count)))));
+    ...options.map(([v, text, count]) => h("button", { type: "button", class: "kp-segmented__item", role: "radio", "data-value": v, "data-key": `chip-${label}-${v}`, "aria-checked": String(v === value) }, h("span", { class: "kp-segmented__label" }, text), count === undefined ? null : h("span", { class: "kp-segmented__count" }, String(count)))));
   group.addEventListener("kp-segmented-change", (e) => {
     const detail = /** @type {CustomEvent} */ (e).detail;
     const v = none ? (detail?.values?.[0] ?? "") : detail?.value;
@@ -68,7 +68,7 @@ export function chips({ label, options, value, onChange, none = false }) {
  */
 export function chipsMulti({ label, options, values, onChange, linkedTo }) {
   const group = h("div", { class: "kp-segmented kp-segmented--chips", "data-kp-segmented": "multi", "data-kp-segmented-for": linkedTo, role: "group", "aria-label": label },
-    ...options.map(([v, text]) => h("button", { type: "button", class: "kp-segmented__item", "data-value": v, "aria-pressed": String(values.includes(v)) }, h("span", { class: "kp-segmented__label" }, text))));
+    ...options.map(([v, text]) => h("button", { type: "button", class: "kp-segmented__item", "data-value": v, "data-key": `chip-${label}-${v}`, "aria-pressed": String(values.includes(v)) }, h("span", { class: "kp-segmented__label" }, text))));
   if (onChange) {
     group.addEventListener("kp-segmented-change", (e) => {
       const list = /** @type {CustomEvent} */ (e).detail?.values;

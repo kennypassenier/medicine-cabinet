@@ -26,7 +26,8 @@ export function addEarlierDose({ meds, onAdded }) {
   const pick = /** @type {HTMLSelectElement} */ (h("select", { class: "kp-field__input", id: "earlier-med" }, ...[...meds].sort((a, b) => a.name.localeCompare(b.name)).map((m) => h("option", { value: String(m.id) }, m.name))));
   const day = datePicker({ name: "earlier_day", label: "Day", id: "earlier-day", value: dayParam(), max: dayParam() });
   const clock = h("div", { class: "kp-time", "data-kp-time": "", "data-kp-name": "earlier-time", "data-kp-value": nowParam().slice(11), "data-kp-label": "Time", "data-kp-time-id": "earlier-time", "data-kp-time-step": "5" });
-  const dose = stepper({ id: "earlier-dose", label: "Dose", value: 1, min: 0.25, step: 0.25, unit: meds[0]?.stock_unit ?? "" });
+  const doseFor = (/** @type {any} */ m, value = 1) => stepper({ id: "earlier-dose", label: "Dose", value, min: 0.25, step: 0.25, unit: m?.stock_unit ?? "" });
+  let dose = doseFor(meds.find((m) => String(m.id) === pick.value));
   let status = "taken";
   const what = chips({ label: "What happened", options: [["taken", "Taken"], ["skipped", "Skipped"]], value: status, onChange: (v) => { status = v; } });
   const go = h("button", { type: "button", class: "kp-button kp-button--primary kp-w-full" }, "Add dose");
@@ -36,12 +37,17 @@ export function addEarlierDose({ meds, onAdded }) {
   holder.data.append(form);
   holder.state("ready");
 
+  let busy = false;
   async function submit() {
+    if (busy) return;
     const med = meds.find((m) => String(m.id) === pick.value);
     const iso = dateValue(form, "earlier_day");
     const time = clock.querySelector("input")?.value ?? "";
     if (!med || !iso || !/^\d{1,2}:\d{2}$/.test(time)) { err.textContent = "Pick the medicine, a valid day and a time like 08:30, then press Add dose."; err.hidden = false; return; }
     const takenAt = `${iso}T${time.padStart(5, "0")}`;
+    if (takenAt > nowParam()) { err.textContent = "That moment is still ahead. Pick a time that has already passed, then press Add dose."; err.hidden = false; return; }
+    busy = true;
+    go.setAttribute("aria-busy", "true");
     try {
       const { id } = await api.logIntake({ medicineId: med.id, status: /** @type {"taken" | "skipped"} */ (status), takenAt, plannedFor: null, dose: stepperValue(dose) });
       err.hidden = true;
@@ -50,9 +56,19 @@ export function addEarlierDose({ meds, onAdded }) {
     } catch (e) {
       err.textContent = errorText(e);
       err.hidden = false;
+    } finally {
+      busy = false;
+      go.removeAttribute("aria-busy");
     }
   }
   go.addEventListener("click", () => void submit());
+  // The dose counts in the unit of the medicine picked: a new stepper carries the unit and keeps the number.
+  pick.addEventListener("change", () => {
+    const next = doseFor(meds.find((m) => String(m.id) === pick.value), stepperValue(dose));
+    dose.replaceWith(next);
+    dose = next;
+    wire(holder.data);
+  });
   wire(holder.data);
   const detach = [attachDatePickers(holder.data), attachTimes(holder.data), attachSelects(holder.data), attachSegmented(holder.data)];
   return { card: holder.card, detach: () => detach.forEach((d) => d?.()) };

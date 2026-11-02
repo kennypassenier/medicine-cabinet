@@ -43,8 +43,20 @@ async function call(method, path, { query = {}, body, timed = false } = {}) {
     throw new ApiError("Your session has ended.", "Log in again.", 401);
   }
   if (!res.ok) throw await failure(res);
-  return res.json();
+  try {
+    return await res.json();
+  } catch {
+    // A 200 that is not JSON: a proxy or captive page answered instead of the service.
+    throw new ApiError("The answer from the server could not be read.", "Reload the page; if it keeps happening, check the connection or log in again.", res.status);
+  }
 }
+
+/** What to do next, by the kind of refusal. @param {number} status */
+const remedyFor = (status) => {
+  if (status === 401 || status === 403) return "Log in again.";
+  if (status >= 500) return "The server had a problem. Try again in a moment.";
+  return "Check the entries and try again.";
+};
 
 /** @param {Response} res */
 async function failure(res) {
@@ -57,7 +69,7 @@ async function failure(res) {
   }
   // A plain-text body is shown only for a short client refusal; a 5xx body (panic text, a proxy's HTML page) never reaches a toast.
   const plain = res.status < 500 && text.trim().length <= 200 ? text.trim() : "";
-  return new ApiError(plain || `The server answered ${res.status}.`, "Check the entries and try again.", res.status);
+  return new ApiError(plain || `The server answered ${res.status}.`, remedyFor(res.status), res.status);
 }
 
 export const api = {

@@ -39,7 +39,7 @@ function buildLayout(root, query, on) {
 }
 
 function drawFilters(/** @type {Cabinet} */ c) {
-  drawFilterChips(c.ui, c.meds, c.view, () => draw(c));
+  redraw(c.ui.tools, () => drawFilterChips(c.ui, c.meds, c.view, () => draw(c)));
 }
 
 /** The list, or the reason there is none. @param {Cabinet} c */
@@ -72,7 +72,9 @@ function reset(/** @type {Cabinet} */ c) {
 
 async function load(/** @type {Cabinet} */ c) {
   try {
-    c.meds = await api.medicines();
+    const meds = await api.medicines();
+    if (!c.alive) return;
+    c.meds = meds;
     c.loaded = true;
     drawFilters(c);
     draw(c);
@@ -108,7 +110,7 @@ export function mount(root) {
   const c = {
     view, meds: [], loaded: false, alive: true,
     ui: buildLayout(root, view.query, { load: () => void load(c) }),
-    stock: createStockEditor({ reload: () => load(c), onSaved: (idle) => { drawFilters(c); if (idle) draw(c); } }),
+    stock: createStockEditor({ reload: () => load(c), onSaved: (idle) => { if (!c.alive) return; drawFilters(c); if (idle) draw(c); } }),
   };
   c.ui.search.addEventListener("input", () => {
     view.query = c.ui.search.value;

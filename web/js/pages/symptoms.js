@@ -2,7 +2,7 @@
 // cabinet (what you have / what is not available) with suggestion chips
 // grouped by category; below it the symptoms and categories are managed.
 
-import { h } from "../dom.js";
+import { h, redraw } from "../dom.js";
 import { api } from "../api.js";
 import { chips } from "../controls.js";
 import { takeOne } from "../dose.js";
@@ -60,7 +60,8 @@ function idle(/** @type {Finder} */ s) {
 }
 
 function drawChips(/** @type {Finder} */ s) {
-  s.ui.suggest.replaceChildren(s.ui.suggest.firstElementChild, ...suggestionRows(s.known.symptoms, s.known.categories, s.symptom, (v) => pick(s, v)));
+  // The chip that has the focus is found again by its key, so a pick by keyboard keeps the keyboard's place.
+  redraw(s.ui.suggest, () => s.ui.suggest.replaceChildren(s.ui.suggest.firstElementChild, ...suggestionRows(s.known.symptoms, s.known.categories, s.symptom, (v) => pick(s, v))));
 }
 
 /** @param {Finder} s @param {string} v */
@@ -96,7 +97,7 @@ function showResults(s, r) {
 
 /** @param {Finder} s @param {boolean} [quiet] keep the screen as it is while loading */
 async function run(s, quiet = false) {
-  history.replaceState(null, "", s.symptom ? `?symptom=${encodeURIComponent(s.symptom)}` : location.pathname);
+  history.replaceState(null, "", s.symptom.trim() ? `?symptom=${encodeURIComponent(s.symptom.trim())}` : location.pathname);
   if (!s.symptom.trim()) return idle(s);
   const mine = ++s.seq;
   if (!quiet) for (const c of [s.ui.have, s.ui.lack]) c.state("loading");
