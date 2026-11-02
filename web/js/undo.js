@@ -7,6 +7,14 @@ import { reportError } from "./ui.js";
 /** How long Undo is offered, in milliseconds. */
 export const UNDO_MS = 8000;
 
+/** The Undo button disappears with its toast; when that leaves the focus nowhere, it goes to the page title. */
+function keepFocus() {
+  setTimeout(() => {
+    const a = document.activeElement;
+    if (!a || a === document.body) document.getElementById("page-title")?.focus({ preventScroll: true });
+  }, 0);
+}
+
 /**
  * @param {string} text what was done, as a sentence
  * @param {{ undo: () => Promise<unknown>, failed: string, after?: () => void }} o
@@ -20,6 +28,7 @@ export function undoable(text, { undo, failed, after }) {
       try {
         await undo();
         after?.();
+        keepFocus();
       } catch (e) {
         reportError(failed, e);
       }

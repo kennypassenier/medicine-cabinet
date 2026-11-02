@@ -7,7 +7,7 @@ import { attachThemePickers, themeMenuMarkup } from "/static/kp/dist/kp-themes.m
 import { attachSegmented, attachAttention, attachSkipLinks, applyStoredCalm } from "/static/kp/dist/kp-themes.min.js";
 import { h } from "./dom.js";
 import { route } from "./routes.js";
-import { dataCard, linkButton, reportError } from "./ui.js";
+import { linkButton, pageHeader, reportError } from "./ui.js";
 import { drawShell, markNav } from "./shell.js";
 import { mayLeave } from "./leave.js";
 
@@ -19,6 +19,14 @@ applyStoredCalm();
 /** @type {() => void} */
 let cleanup = () => {};
 let seq = 0;
+/** The first screen is read from the top by itself; every later one moves the focus to its title. */
+let firstScreen = true;
+
+/** After a route change: the focus goes to the page title (it is read out), the top of the page when it has none yet. */
+function focusTitle() {
+  const target = document.getElementById("page-title") ?? page;
+  target.focus({ preventScroll: true });
+}
 
 /** @param {string} href */
 export async function navigate(href) {
@@ -49,7 +57,8 @@ async function render() {
   shown = location.href;
   if (!found) {
     document.title = "Not found · Medicine cabinet";
-    return void page.replaceChildren(plate("Page not found", "There is nothing at this address.", "Back to today", "/"));
+    page.replaceChildren(plate("Page not found", "There is nothing at this address. Check the address, or go back to Today.", "Back to today", "/"));
+    return void (firstScreen ? (firstScreen = false) : focusTitle());
   }
   let mod;
   try {
@@ -57,20 +66,21 @@ async function render() {
   } catch (e) {
     if (mine !== seq) return;
     reportError("This screen could not be loaded.", e);
-    return void page.replaceChildren(plate("This screen could not be loaded", "Reload the page to try again.", "Reload", location.href));
+    page.replaceChildren(plate("This screen could not be loaded", "Reload the page to try again. If it keeps failing, the service may be restarting; try again in a minute.", "Reload", location.href));
+    return void focusTitle();
   }
   if (mine !== seq) return;
   page.replaceChildren();
   const done = mod.mount(page, { params: found.params, navigate });
   if (typeof done === "function") cleanup = done;
   if (!location.hash) window.scrollTo({ top: 0 });
+  if (!firstScreen) focusTitle();
+  firstScreen = false;
 }
 
-/** The plate for a screen that cannot be drawn at all: an empty card in the page body. */
+/** The page for a screen that cannot be drawn at all: a page header (the one h1) with the way out. */
 function plate(title, text, label, href) {
-  const card = dataCard({ id: "plate", title });
-  card.state("empty", { title, text, action: linkButton(label, label === "Reload" ? location.pathname : href, "kp-button--primary") });
-  return h("div", { class: "kp-ops__body" }, card.card);
+  return pageHeader({ title, description: text, actions: [linkButton(label, label === "Reload" ? location.pathname : href, "kp-button--primary")] });
 }
 
 const theme = h("span", { class: "mc-theme" });

@@ -98,10 +98,12 @@ export function addRow({ label, hint, accept, fields, onAdd }) {
     return { f, el, list: f.list ? h("datalist", { id: `${fid}-list` }, ...f.list.map((u) => h("option", { value: u }))) : null };
   });
   const go = h("button", { type: "button", class: "kp-button kp-button--primary" }, accept);
+  const clearInvalid = () => inputs.forEach(({ el }) => { el.removeAttribute("aria-invalid"); el.removeAttribute("aria-describedby"); });
   async function submit() {
     const values = Object.fromEntries(inputs.map(({ f, el }) => [f.name, el.value.trim()]));
     const missing = inputs.find(({ f, el }) => f.required && !el.value.trim());
-    if (missing) { err.textContent = `${missing.f.label} is required. Fill it in, then press ${accept}.`; err.hidden = false; return missing.el.focus(); }
+    clearInvalid();
+    if (missing) { err.textContent = `${missing.f.label} is required. Fill it in, then press ${accept}.`; err.hidden = false; missing.el.setAttribute("aria-invalid", "true"); missing.el.setAttribute("aria-describedby", err.id); return missing.el.focus(); }
     go.setAttribute("aria-busy", "true");
     try {
       await onAdd(values);
@@ -111,6 +113,7 @@ export function addRow({ label, hint, accept, fields, onAdd }) {
     } catch (e) {
       err.textContent = errorText(e);
       err.hidden = false;
+      inputs[0].el.setAttribute("aria-describedby", err.id);
     } finally {
       go.removeAttribute("aria-busy");
     }

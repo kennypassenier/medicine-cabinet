@@ -5,7 +5,7 @@ import { h, redraw } from "../dom.js";
 import { api, plannedToday } from "../api.js";
 import { longDay } from "../clock.js";
 import { markFresh, onTick } from "../ticker.js";
-import { dataCard, pageHeader, reportError, linkButton } from "../ui.js";
+import { dataCard, pageHeader, errorText, reportError, linkButton } from "../ui.js";
 import { takeOne } from "../dose.js";
 import { undoable } from "../undo.js";
 import { renderNext, renderSchedule } from "./today-doses.js";
@@ -77,7 +77,7 @@ async function load(t, manual = false) {
     markFresh();
   } catch (e) {
     if (!t.alive) return;
-    if (!t.loadedOnce) for (const c of [next, sched, need]) c.state("error", { title: "Today could not be loaded", text: e instanceof Error ? e.message : String(e) });
+    if (!t.loadedOnce) for (const c of [next, sched, need]) c.state("error", { title: "Today could not be loaded", text: errorText(e) });
     else if (manual || !document.hidden) reportError("Today could not be refreshed.", e);
   }
 }

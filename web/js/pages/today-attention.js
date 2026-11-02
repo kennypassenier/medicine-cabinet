@@ -35,9 +35,16 @@ export function renderAttention(band, items, meds, reload) {
       text: humanize(a.detail),
       action: stock && med
         ? addStockButton(med, reload)
-        : linkButton("Open", `/medicine/${a.medicine_id}`, "kp-button--sm"),
+        : openLink(a),
     };
   }));
+}
+
+/** The "Open" link of a problem; its name says which medicine. @param {any} a */
+function openLink(a) {
+  const link = linkButton("Open", `/medicine/${a.medicine_id}`, "kp-button--sm");
+  link.setAttribute("aria-label", `Open ${a.medicine_name}`);
+  return link;
 }
 
 /** The "Add stock" button: it opens the popover under itself. @param {any} med @param {() => void} reload */

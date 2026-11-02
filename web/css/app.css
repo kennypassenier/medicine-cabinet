@@ -28,3 +28,26 @@
 [data-mc-pills] { display: grid; grid-auto-flow: row; grid-template-columns: minmax(0, 1fr) auto; inline-size: 100%; align-items: center; gap: var(--kp-space-sm, 0.5rem); }
 [data-mc-pills] > .kp-segmented__item { justify-self: start; }
 [data-mc-pills] > [data-mc-solo] { grid-column: 1 / -1; }
+
+/* The unsaved-changes bar docks at the foot of the screen: on a phone it stands above the tab bar, not under it, and the page keeps room for it. */
+.kp-ops { --kp-unsaved-dock-offset: calc(var(--kp-tabbar-height, 0px) + var(--kp-space-md, 1rem)); }
+.kp-ops:has([data-kp-docked]) { padding-block-end: 6rem; }
+
+/* Touch: every control is at least 44 px (2.75rem) to hit. Chips and form-field heights grow in place; text links grow their hit area with padding that a negative margin takes back, so lines do not move. */
+@media (pointer: coarse) {
+  .kp-segmented__item { min-block-size: 2.75rem; }
+  .kp-field__input:not(textarea), .kp-quantity__input, .kp-datatable__search { min-block-size: 2.75rem; }
+  .kp-time__toggle { min-inline-size: 2.75rem; }
+  .kp-switch { min-block-size: 2.75rem; align-items: center; }
+  .kp-listrow__name, .kp-action-list a, .kp-nav__brand { display: inline-block; padding-block: 0.6875rem; margin-block: -0.6875rem; }
+}
+
+/* A phone with the on-screen keyboard open is only a few lines high: the tab bar steps aside so the field being typed in stays in view (the top bar still has the brand and the theme picker, and Back works). */
+@media (pointer: coarse) and (max-width: 40rem) and (max-height: 32rem) {
+  .kp-tabbar { display: none; }
+}
+
+/* Filter chips on a phone wrap onto more lines instead of scrolling sideways, where the last chip is cut and nothing says there is more. */
+@media (max-width: 40rem) {
+  .kp-toolbar .kp-segmented--chips { flex-wrap: wrap; overflow: visible; }
+}
