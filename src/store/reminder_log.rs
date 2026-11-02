@@ -13,7 +13,7 @@ pub type SentKey = (i64, String, String);
 /// Everything sent for slots or digests on `day` (`YYYY-MM-DD`).
 pub fn sent_on(conn: &Connection, day: &str) -> Result<HashSet<SentKey>, Error> {
     let mut stmt = conn
-        .prepare("SELECT medicine_id, planned_for, kind FROM reminder_log WHERE planned_for LIKE ?1 || '%'")
+        .prepare("SELECT medicine_id, planned_for, kind FROM reminder_log WHERE substr(planned_for, 1, length(?1)) = ?1")
         .map_err(db_err)?;
     let rows = stmt
         .query_map([day], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))

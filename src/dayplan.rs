@@ -31,3 +31,6 @@ pub fn day_slots(all: &[Medicine], logged: &[Intake], today: Date) -> Vec<PlanSl
     }
     out
 }
+
+#[cfg(test)]
+mod tests;

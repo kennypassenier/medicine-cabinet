@@ -117,3 +117,6 @@ mod tests {
         assert_eq!(p[1].time, "15:00");
     }
 }
+
+#[cfg(test)]
+mod edge_tests;

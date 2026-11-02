@@ -114,4 +114,49 @@ mod tests {
         assert_eq!(p.upsert, vec![moved, new]);
         assert_eq!(p.delete, vec!["gone".to_string()]);
     }
+
+    #[test]
+    fn nothing_wanted_and_nothing_sent_is_an_empty_plan() {
+        assert_eq!(plan(vec![], &HashMap::new()), Plan::default());
+    }
+
+    #[test]
+    fn everything_sent_unchanged_is_an_empty_plan() {
+        let a = wanted("a", "2026-11-01");
+        let sent = HashMap::from([("a".to_string(), a.fingerprint())]);
+        assert_eq!(plan(vec![a], &sent), Plan::default());
+    }
+
+    #[test]
+    fn a_changed_title_or_description_is_resent_under_the_same_id() {
+        let mut a = wanted("a", "2026-11-01");
+        let sent = HashMap::from([("a".to_string(), a.fingerprint())]);
+        a.title = "New title".into();
+        let p = plan(vec![a.clone()], &sent);
+        assert_eq!(p.upsert, vec![a.clone()]);
+        assert!(p.delete.is_empty());
+        a.title = "T".into();
+        a.description = "changed".into();
+        assert_eq!(plan(vec![a], &sent).upsert.len(), 1);
+    }
+
+    #[test]
+    fn with_nothing_wanted_everything_sent_is_deleted() {
+        let sent = HashMap::from([
+            ("a".to_string(), "x".to_string()),
+            ("b".to_string(), "y".to_string()),
+        ]);
+        let mut p = plan(vec![], &sent);
+        p.delete.sort();
+        assert!(p.upsert.is_empty());
+        assert_eq!(p.delete, ["a", "b"]);
+    }
+
+    #[test]
+    fn a_first_run_upserts_everything_in_order() {
+        let list = vec![wanted("a", "2026-11-01"), wanted("b", "2026-11-02")];
+        let p = plan(list.clone(), &HashMap::new());
+        assert_eq!(p.upsert, list);
+        assert!(p.delete.is_empty());
+    }
 }

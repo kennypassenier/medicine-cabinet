@@ -55,3 +55,6 @@ pub fn attention_for(all: &[Medicine], today: Date) -> Vec<Attention> {
     }
     out
 }
+
+#[cfg(test)]
+mod tests;

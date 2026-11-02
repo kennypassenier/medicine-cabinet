@@ -197,3 +197,6 @@ mod tests {
         assert!(run_out_date(&empty, today()).is_none());
     }
 }
+
+#[cfg(test)]
+mod edge_tests;

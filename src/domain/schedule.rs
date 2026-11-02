@@ -175,3 +175,6 @@ mod tests {
         assert!(check_dose(&[], Some(240), Some(1)).allowed);
     }
 }
+
+#[cfg(test)]
+mod edge_tests;
