@@ -2,13 +2,16 @@
 // is allowed, explain a refusal in plain words, offer an explicit override,
 // and offer Undo after the dose is logged.
 
-import { undoToast } from "/static/kp/dist/kp-themes.min.js";
 import { api } from "./api.js";
 import { h } from "./dom.js";
 import { ask } from "./dialogs.js";
 import { duration } from "./clock.js";
 import { qty } from "./format.js";
 import { reportError } from "./ui.js";
+import { undoable } from "./undo.js";
+
+/** Medicines whose "I took one" is being handled: a second tap must not log a second dose. @type {Set<number>} */
+const taking = new Set();
 
 /** The dose logged for an as-needed medicine: the schedule has no slot to say, so one unit. */
 export const AS_NEEDED_DOSE = 1;
@@ -26,13 +29,10 @@ function refusal(med, check) {
 async function log(med, onChange) {
   const { id } = await api.logIntake({ medicineId: med.id, status: "taken", dose: AS_NEEDED_DOSE });
   onChange();
-  undoToast(`Logged 1 dose of ${med.name}. ${qty(Math.max(0, med.stock - AS_NEEDED_DOSE), med.stock_unit)} left.`, {
-    mode: "revert",
-    ms: 8000,
-    undo: async () => {
-      await api.undoIntake(id);
-      onChange();
-    },
+  undoable(`Logged 1 dose of ${med.name}. ${qty(Math.max(0, med.stock - AS_NEEDED_DOSE), med.stock_unit)} left.`, {
+    undo: () => api.undoIntake(id),
+    failed: `Could not take the dose of ${med.name} back.`,
+    after: onChange,
   });
 }
 
@@ -43,6 +43,8 @@ async function log(med, onChange) {
  * @returns {Promise<void>}
  */
 export async function takeOne(med, onChange) {
+  if (taking.has(med.id)) return;
+  taking.add(med.id);
   try {
     const check = await api.doseCheck(med.id);
     if (!check.allowed) {
@@ -52,5 +54,7 @@ export async function takeOne(med, onChange) {
     await log(med, onChange);
   } catch (e) {
     reportError(`Could not log ${med.name}.`, e);
+  } finally {
+    taking.delete(med.id);
   }
 }
