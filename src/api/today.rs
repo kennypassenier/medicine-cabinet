@@ -5,12 +5,12 @@ use axum::extract::State;
 use chassis::storage::AppDb;
 use serde::Serialize;
 
-use super::extract::ApiQuery;
 use super::{ApiResult, Clock};
 use crate::attention::{Attention, attention_for};
 use crate::domain::plan::{PlannedDose, plan};
 use crate::store::intakes;
 use crate::store::medicines::{self, Medicine};
+use chassis::ApiQuery;
 
 #[derive(Debug, Serialize)]
 pub struct Overview {

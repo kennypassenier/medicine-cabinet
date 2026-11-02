@@ -5,12 +5,12 @@ use axum::extract::State;
 use chassis::storage::AppDb;
 use serde::Deserialize;
 
-use super::extract::{ApiJson, ApiPath, ApiQuery};
 use super::{ApiResult, Clock};
 use crate::domain::medicine::MedicineInput;
 use crate::domain::schedule::SlotInput;
 use crate::store::medicines::{self, Medicine};
 use crate::store::{slots, stock};
+use chassis::{ApiJson, ApiPath, ApiQuery};
 
 /// A medicine together with its repeating schedule.
 #[derive(Debug, Deserialize)]

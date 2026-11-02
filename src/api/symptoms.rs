@@ -6,9 +6,9 @@ use chassis::storage::AppDb;
 use serde::Deserialize;
 
 use super::ApiResult;
-use super::extract::{ApiJson, ApiPath};
 use crate::store::categories::{self, Category};
 use crate::store::symptoms::{self, Symptom};
+use chassis::{ApiJson, ApiPath};
 
 #[derive(Debug, Deserialize)]
 pub struct SymptomBody {

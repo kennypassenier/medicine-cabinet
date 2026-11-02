@@ -6,8 +6,8 @@ use chassis::storage::AppDb;
 use serde::Deserialize;
 
 use super::ApiResult;
-use super::extract::{ApiJson, ApiPath};
 use crate::store::forms::{self, Form};
+use chassis::{ApiJson, ApiPath};
 
 #[derive(Debug, Deserialize)]
 pub struct FormBody {

@@ -5,11 +5,11 @@ use axum::extract::State;
 use chassis::storage::AppDb;
 use serde::{Deserialize, Serialize};
 
-use super::extract::ApiQuery;
 use super::{ApiResult, Clock};
 use crate::domain::limits;
 use crate::domain::medicine::{Freshness, StockLevel};
 use crate::store::medicines::{self, Medicine};
+use chassis::ApiQuery;
 
 #[derive(Debug, Deserialize)]
 pub struct SearchQuery {

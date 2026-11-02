@@ -1,6 +1,5 @@
 //! The JSON API the browser app talks to (behind the admin login).
 
-mod extract;
 mod forms;
 mod intakes;
 mod medicines;
