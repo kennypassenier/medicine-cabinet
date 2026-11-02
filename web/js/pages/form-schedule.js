@@ -22,7 +22,7 @@ function slotRow(s, unit, n) {
       h("div", { class: "kp-weekdays", "data-kp-weekdays": "", "data-kp-untracked": "", "data-kp-value": daysOf(s.days).join(","), "data-kp-presets": "false", "data-kp-summary": "false", "aria-label": "Days" })),
     h("div", { class: "kp-rows__cell", "data-label": "Dose" },
       h("div", { class: "kp-quantity", "data-kp-quantity": "", "data-kp-untracked": "", "data-kp-quantity-fill": "", "data-kp-quantity-min": "0.25", "data-kp-quantity-step": "0.25", "data-kp-quantity-unit": unit, "data-kp-quantity-unit-one": unitOne, "data-kp-quantity-label": "Dose" },
-        h("input", { class: "kp-quantity__input", value: String(s.dose) }))));
+        h("input", { class: "kp-quantity__input", autocomplete: "off", value: String(s.dose) }))));
 }
 
 /** The row editor: the slots, a template for new ones, and nothing else (the package writes the head, remove and add buttons). @param {Slot[]} slots @param {string} unit */

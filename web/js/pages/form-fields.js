@@ -32,7 +32,7 @@ export function text({ name, label, value = "", hint, required, multiline, list,
 /** The package's date picker alone (ISO in, `dataset.kpDateValue` out); `max` is the last day it accepts. @param {{ name: string, label: string, id: string, value?: string | null, max?: string }} o */
 export function datePicker({ name, label, id, value, max }) {
   return h("div", { class: "kp-datepicker", "data-kp-datepicker": "", lang: "en-GB", "data-name": name, "data-kp-max": max },
-    h("input", { class: "kp-field__input", id, type: "text", inputmode: "numeric", "data-kp-date-input": "", placeholder: "dd/mm/yyyy", "aria-label": label, value: value ? formatDate(value) : null }),
+    h("input", { class: "kp-field__input", id, type: "text", inputmode: "numeric", autocomplete: "off", "data-kp-date-input": "", placeholder: "dd/mm/yyyy", "aria-label": label, value: value ? formatDate(value) : null }),
     h("button", { type: "button", class: "kp-button", "data-kp-date-open": "", "aria-label": `Open the calendar for ${label}`, title: "Open the calendar" }, h("span", { "aria-hidden": "true" }, "▦")),
     h("div", { class: "kp-datepicker__panel", "data-kp-date-panel": "", hidden: true }));
 }

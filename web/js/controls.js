@@ -23,7 +23,7 @@ export function stepper({ label, value, min = 0, max, step = 1, unit = "", onCha
     "data-kp-quantity-unit-one": unitOne,
     "data-kp-quantity-label": label,
     "data-key": key,
-  }, h("input", { class: "kp-quantity__input", value: String(value) }));
+  }, h("input", { class: "kp-quantity__input", autocomplete: "off", value: String(value) }));
   if (onChange) root.addEventListener(QUANTITY_EVENT, (e) => onChange(/** @type {CustomEvent} */ (e).detail.value));
   return root;
 }
