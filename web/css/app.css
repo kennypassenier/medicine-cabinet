@@ -4,12 +4,6 @@
 /* The theme picker sits at the end of the top bar. */
 .mc-tools { display: inline-grid; grid-auto-flow: column; align-items: center; margin-inline-start: auto; }
 
-/* The page column is 80% of the window: the package's width knob counts the padding too, so the padding is added to it. */
-.kp-ops {
-  --kp-ops-pad-inline: clamp(var(--kp-space-md, 1rem), 3vw, var(--kp-space-xl, 2rem));
-  --kp-ops-width: max(calc(80vw + 2 * var(--kp-ops-pad-inline)), 64rem);
-}
-
 /* On a phone the bottom tab bar is the only navigation: the top bar keeps the brand and the theme picker. */
 @media (max-width: 40rem) {
   .kp-nav__links { display: none; }

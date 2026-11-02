@@ -18,7 +18,7 @@ publish = false
 # builds against glibc instead — add the feature here and take the musl
 # target back out of rust-toolchain.toml, the Dockerfile and `chassis release`,
 # knowing the binary then only runs on hosts with the builder's glibc.
-chassis = { git = "https://github.com/kennypassenier/chassis-rs", rev = "3ad18f5d6029b6fe65e766e31d2d62cbc8bae4ce", version = "4.1.0", features = ["storage", "dashboard", "webapp", "self-update", "notify"] }
+chassis = { git = "https://github.com/kennypassenier/chassis-rs", tag = "v4.3.0", version = "4.3.0", features = ["storage", "dashboard", "webapp", "self-update", "notify"] }
 axum = { version = "0.8", default-features = false, features = ["http1", "tokio", "json", "matched-path", "query"] }
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "signal"] }
 serde_json = "1"
@@ -33,7 +33,7 @@ serde = { version = "1", features = ["derive"] }
 # the feature; bump its tag together with the one above. A `--chassis-path`
 # project points both at the local checkout — a path dependency still needs
 # `version`, or cargo-deny reads it as a wildcard (CF-6 a).
-chassis = { git = "https://github.com/kennypassenier/chassis-rs", rev = "3ad18f5d6029b6fe65e766e31d2d62cbc8bae4ce", version = "4.1.0", features = ["testing"] }
+chassis = { git = "https://github.com/kennypassenier/chassis-rs", tag = "v4.3.0", version = "4.3.0", features = ["testing"] }
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json", "blocking", "cookies"] }
 tempfile = "3"
 
