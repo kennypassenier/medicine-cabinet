@@ -30,7 +30,8 @@ async function saveEdit(i, next, unit, after) {
   try {
     await api.editIntake(i.id, body);
   } catch (e) {
-    return reportError(`Could not change ${i.medicine_name}.`, e);
+    reportError(`Could not change ${i.medicine_name}.`, e);
+    return after(); // the row shows what the server holds again, not the value that was refused
   }
   Object.assign(i, { taken_at: body.taken_at, dose: body.dose });
   after();
