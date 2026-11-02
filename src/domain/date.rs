@@ -140,3 +140,6 @@ mod tests {
         assert!(parse_minutes("25:00").is_err());
     }
 }
+
+#[cfg(test)]
+mod edge_tests;

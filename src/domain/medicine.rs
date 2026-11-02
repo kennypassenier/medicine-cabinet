@@ -188,3 +188,6 @@ mod tests {
         assert_eq!(clean_symptoms(&raw), vec!["headache", "fever"]);
     }
 }
+
+#[cfg(test)]
+mod edge_tests;

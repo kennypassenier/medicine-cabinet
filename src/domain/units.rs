@@ -48,3 +48,6 @@ mod tests {
         assert_eq!(amount(0.5, ""), "0.5");
     }
 }
+
+#[cfg(test)]
+mod edge_tests;
