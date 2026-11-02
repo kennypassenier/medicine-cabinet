@@ -221,8 +221,8 @@ rate limits, capture, session, update-timing and storage knobs.
 | Variable | Flag | Default | Meaning |
 |---|---|---|---|
 | `MEDICINE_CABINET_LISTEN` | `--listen` | `0.0.0.0:8080` | The `host:port` to bind; port 0 picks a free one and the bound address is logged. |
-| `MEDICINE_CABINET_STATE_DIR` | `--state-dir` | `/var/lib/medicine-cabinet` (the unit and the image set it explicitly) | The one directory all state lives under; flag or env only, since the config file lives inside it. |
-| `MEDICINE_CABINET_CONFIG` | `--config` | `<state_dir>/config.toml` | Path of the TOML config file; flag or env only. |
+| `MEDICINE_CABINET_STATE_DIR` | `--state-dir` | `/var/lib/medicine-cabinet` (the unit and the image set it explicitly) | The one directory all state lives under (default `/var/lib/<name>`); flag or env only, since the config file lives inside it. |
+| `MEDICINE_CABINET_CONFIG` | `--config` | `<state_dir>/config.toml` | Path of the TOML config file (default `<state_dir>/config.toml`); flag or env only. |
 | `MEDICINE_CABINET_LOG` | `--log` | `info` | The `tracing` log filter, e.g. `info` or `info,chassis=debug`. |
 | `MEDICINE_CABINET_LOG_FORMAT` | `--log-format` | `text` | Format of a log line: `text` or `json`. |
 | `MEDICINE_CABINET_TRUSTED_PROXIES` | `--trusted-proxies` | `""` | Comma-separated IP addresses whose `X-Forwarded-For` and `X-Forwarded-Proto` headers are believed. |
