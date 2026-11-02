@@ -25,7 +25,9 @@ pub struct Hub {
     config: HubConfig,
 }
 
-fn unreachable(what: &str, e: impl std::fmt::Display) -> Error {
+fn unreachable(what: &str, e: reqwest::Error) -> Error {
+    // The address stays out of the message: it is configuration, not news.
+    let e = e.without_url();
     Error::dependency(
         format!("The calendar hub did not accept {what}: {e}"),
         "check the Almanac address and that its token for this source is valid; the next pass retries",
@@ -34,12 +36,16 @@ fn unreachable(what: &str, e: impl std::fmt::Display) -> Error {
 
 impl Hub {
     pub fn new(config: HubConfig) -> Result<Self, Error> {
-        let http = Client::builder().timeout(TIMEOUT).build().map_err(|e| {
-            Error::internal(
-                format!("the HTTP client could not start: {e}"),
-                "this is a bug; report it",
-            )
-        })?;
+        let http = Client::builder()
+            .connect_timeout(Duration::from_secs(5))
+            .timeout(TIMEOUT)
+            .build()
+            .map_err(|e| {
+                Error::internal(
+                    format!("the HTTP client could not start: {e}"),
+                    "this is a bug; report it",
+                )
+            })?;
         Ok(Self { http, config })
     }
 

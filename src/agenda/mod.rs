@@ -8,10 +8,9 @@ use std::time::Duration;
 
 use chassis::Error;
 use chassis::storage::AppDb;
-use chrono::{Datelike, Utc};
 
+use crate::clock::now_in;
 use crate::config::ReminderConfig;
-use crate::domain::date::Date;
 use crate::store::{agenda_sent, medicines};
 use client::Hub;
 pub use client::HubConfig;
@@ -62,28 +61,37 @@ pub fn spawn(db: AppDb, hub: HubConfig, reminders: ReminderConfig) {
 }
 
 async fn pass(db: &AppDb, hub: &Hub, config: ReminderConfig) -> Result<(), Error> {
-    let local = Utc::now().with_timezone(&config.timezone);
-    let today = Date::parse(&format!(
-        "{:04}-{:02}-{:02}",
-        local.year(),
-        local.month(),
-        local.day()
-    ))?;
+    let today = now_in(config.timezone).date;
     let (meds, sent) = db
         .read(move |conn| Ok((medicines::list(conn, today)?, agenda_sent::all(conn)?)))
         .await?;
     let todo = plan(wanted_events(&meds, today), &sent);
+    // One event the hub refuses must not hold back the others: carry on and
+    // report the first failure at the end (the next pass retries it).
+    let mut first_failure = None;
     for event in todo.upsert {
-        hub.upsert(&event).await?;
-        let (id, print) = (event.external_id.clone(), event.fingerprint());
-        db.write(move |tx| agenda_sent::remember(tx, &id, &print))
-            .await?;
+        if let Err(e) = push_one(db, hub, &event).await {
+            first_failure.get_or_insert(e);
+        }
     }
     for id in todo.delete {
-        hub.delete(&id).await?;
-        db.write(move |tx| agenda_sent::forget(tx, &id)).await?;
+        if let Err(e) = drop_one(db, hub, id).await {
+            first_failure.get_or_insert(e);
+        }
     }
-    Ok(())
+    first_failure.map_or(Ok(()), Err)
+}
+
+async fn push_one(db: &AppDb, hub: &Hub, event: &Wanted) -> Result<(), Error> {
+    hub.upsert(event).await?;
+    let (id, print) = (event.external_id.clone(), event.fingerprint());
+    db.write(move |tx| agenda_sent::remember(tx, &id, &print))
+        .await
+}
+
+async fn drop_one(db: &AppDb, hub: &Hub, id: String) -> Result<(), Error> {
+    hub.delete(&id).await?;
+    db.write(move |tx| agenda_sent::forget(tx, &id)).await
 }
 
 #[cfg(test)]

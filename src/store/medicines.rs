@@ -118,7 +118,17 @@ pub fn get(conn: &Connection, id: i64, today: Date) -> Result<Medicine, Error> {
     }
 }
 
+/// A form id the request names must exist (a clear 404, not a database error).
+fn ensure_form(tx: &Transaction, form_id: Option<i64>) -> Result<(), Error> {
+    let Some(id) = form_id else { return Ok(()) };
+    tx.query_row("SELECT 1 FROM medicine_forms WHERE id = ?1", [id], |_| {
+        Ok(())
+    })
+    .map_err(|_| not_found("form", id))
+}
+
 pub fn insert(tx: &Transaction, m: &MedicineInput) -> Result<i64, Error> {
+    ensure_form(tx, m.form_id)?;
     tx.execute(
         "INSERT INTO medicines (name, purpose, form_id, strength, notes, active, as_needed,
             min_gap_minutes, max_per_day, stock, stock_unit, low_stock_at,
@@ -150,12 +160,13 @@ pub fn insert(tx: &Transaction, m: &MedicineInput) -> Result<i64, Error> {
 }
 
 pub fn update(tx: &Transaction, id: i64, m: &MedicineInput) -> Result<(), Error> {
+    ensure_form(tx, m.form_id)?;
     let changed = tx
         .execute(
             "UPDATE medicines SET name=?2, purpose=?3, form_id=?4, strength=?5, notes=?6,
                 active=?7, as_needed=?8, min_gap_minutes=?9, max_per_day=?10, stock=?11,
                 stock_unit=?12, low_stock_at=?13, expires_on=?14, opened_on=?15,
-                shelf_life_days=?16, course_ends_on=?17 WHERE id=?1",
+                shelf_life_days=?16, course_ends_on=?17 WHERE id=?1 AND deleted_at IS NULL",
             params![
                 id,
                 m.name,
@@ -228,22 +239,12 @@ pub fn purge_deleted(tx: &Transaction) -> Result<usize, Error> {
 pub fn set_active(tx: &Transaction, id: i64, active: bool) -> Result<(), Error> {
     let changed = tx
         .execute(
-            "UPDATE medicines SET active = ?2 WHERE id = ?1",
+            "UPDATE medicines SET active = ?2 WHERE id = ?1 AND deleted_at IS NULL",
             params![id, active],
         )
         .map_err(db_err)?;
     if changed == 0 {
         return Err(not_found("medicine", id));
     }
-    Ok(())
-}
-
-/// Add (or, negative, remove) stock. Never goes below zero.
-pub fn adjust_stock(tx: &Transaction, id: i64, delta: f64) -> Result<(), Error> {
-    tx.execute(
-        "UPDATE medicines SET stock = MAX(0, stock + ?2) WHERE id = ?1",
-        params![id, delta],
-    )
-    .map_err(db_err)?;
     Ok(())
 }

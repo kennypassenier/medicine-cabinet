@@ -88,9 +88,9 @@ fn symptoms_are_cleaned_during_validation() {
 
 #[test]
 fn clean_symptoms_keeps_first_seen_order_and_handles_empty_input() {
-    assert!(clean_symptoms(&[]).is_empty());
+    assert!(clean_symptoms(&[]).unwrap().is_empty());
     let raw: Vec<String> = ["b", "a", "B", "c", "A"].map(String::from).to_vec();
-    assert_eq!(clean_symptoms(&raw), vec!["b", "a", "c"]);
+    assert_eq!(clean_symptoms(&raw).unwrap(), vec!["b", "a", "c"]);
 }
 
 #[test]

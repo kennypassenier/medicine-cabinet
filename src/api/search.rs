@@ -1,11 +1,13 @@
 //! Finding medicines by symptom, and the symptom suggestions.
 
 use axum::Json;
-use axum::extract::{Query, State};
+use axum::extract::State;
 use chassis::storage::AppDb;
 use serde::{Deserialize, Serialize};
 
+use super::extract::ApiQuery;
 use super::{ApiResult, Clock};
+use crate::domain::limits;
 use crate::domain::medicine::{Freshness, StockLevel};
 use crate::store::medicines::{self, Medicine};
 
@@ -42,10 +44,10 @@ fn partition_for(all: Vec<Medicine>, needle: &str) -> (Vec<Medicine>, Vec<Medici
 
 pub async fn by_symptom(
     State(db): State<AppDb>,
-    Query(q): Query<SearchQuery>,
+    ApiQuery(q): ApiQuery<SearchQuery>,
 ) -> ApiResult<SearchResult> {
     let today = q.clock.date()?;
-    let needle = q.symptom.trim().to_lowercase();
+    let needle = limits::text("the symptom", &q.symptom, limits::NAME_MAX, true)?.to_lowercase();
     let wanted = needle.clone();
     let all = db.read(move |conn| medicines::list(conn, today)).await?;
     let (usable, unavailable) = partition_for(all, &wanted);

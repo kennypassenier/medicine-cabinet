@@ -4,6 +4,7 @@ use chassis::Error;
 use serde::{Deserialize, Serialize};
 
 use super::date::Date;
+use super::limits;
 
 /// What the user types in (create and update share one shape).
 #[derive(Debug, Clone, Deserialize)]
@@ -47,19 +48,33 @@ fn yes() -> bool {
 impl MedicineInput {
     /// Trim, check and normalise; the store only ever sees a valid input.
     pub fn validated(mut self) -> Result<Self, Error> {
-        self.name = self.name.trim().to_string();
+        self.name = limits::text("the name", &self.name, limits::NAME_MAX, true)?;
         if self.name.is_empty() {
             return Err(Error::invalid(
                 "a medicine needs a name",
                 "fill in the name field",
             ));
         }
-        if self.stock < 0.0 || self.low_stock_at.is_some_and(|v| v < 0.0) {
-            return Err(Error::invalid(
-                "stock cannot be negative",
-                "enter 0 or a positive amount",
-            ));
+        self.purpose = limits::text("the purpose", &self.purpose, limits::TEXT_MAX, false)?;
+        self.strength = limits::text("the strength", &self.strength, limits::UNIT_MAX, true)?;
+        self.notes = limits::text("the notes", &self.notes, limits::TEXT_MAX, false)?;
+        self.stock_unit = limits::text("the stock unit", &self.stock_unit, limits::UNIT_MAX, true)?;
+        self.stock = limits::amount("stock", self.stock, false)?;
+        if let Some(v) = self.low_stock_at {
+            self.low_stock_at = Some(limits::amount("the low-stock level", v, false)?);
         }
+        self.min_gap_minutes = self
+            .min_gap_minutes
+            .map(|v| limits::whole("the minimum gap in minutes", v, 1, 7 * 24 * 60))
+            .transpose()?;
+        self.max_per_day = self
+            .max_per_day
+            .map(|v| limits::whole("the maximum per day", v, 1, 1000))
+            .transpose()?;
+        self.shelf_life_days = self
+            .shelf_life_days
+            .map(|v| limits::whole("the shelf life in days", v, 1, 36_500))
+            .transpose()?;
         for date in [
             &mut self.expires_on,
             &mut self.opened_on,
@@ -70,21 +85,22 @@ impl MedicineInput {
                 None => None,
             };
         }
-        self.symptoms = clean_symptoms(&self.symptoms);
+        limits::list_len("the symptom list", self.symptoms.len())?;
+        self.symptoms = clean_symptoms(&self.symptoms)?;
         Ok(self)
     }
 }
 
 /// Symptom names: trimmed, lowercased, de-duplicated, order kept.
-pub fn clean_symptoms(raw: &[String]) -> Vec<String> {
+pub fn clean_symptoms(raw: &[String]) -> Result<Vec<String>, Error> {
     let mut out: Vec<String> = Vec::new();
     for name in raw {
-        let name = name.trim().to_lowercase();
+        let name = limits::text("a symptom name", name, limits::NAME_MAX, true)?.to_lowercase();
         if !name.is_empty() && !out.contains(&name) {
             out.push(name);
         }
     }
-    out
+    Ok(out)
 }
 
 /// How soon a date runs out.
@@ -185,9 +201,12 @@ mod tests {
             "".into(),
             "Fever".into(),
         ];
-        assert_eq!(clean_symptoms(&raw), vec!["headache", "fever"]);
+        assert_eq!(clean_symptoms(&raw).unwrap(), vec!["headache", "fever"]);
+        assert!(clean_symptoms(&["x".repeat(500)]).is_err());
     }
 }
 
 #[cfg(test)]
 mod edge_tests;
+#[cfg(test)]
+mod validation_tests;

@@ -5,6 +5,7 @@ use chassis::storage::rusqlite::{Connection, Transaction, params};
 use serde::Serialize;
 
 use super::db_err;
+use crate::domain::limits;
 
 /// Replace the symptom links of one medicine with exactly `names`.
 pub fn set_for_medicine(tx: &Transaction, medicine_id: i64, names: &[String]) -> Result<(), Error> {
@@ -56,7 +57,9 @@ pub fn list(conn: &Connection) -> Result<Vec<Symptom>, Error> {
             "SELECT s.id, s.name, s.category_id, c.name, COUNT(ms.medicine_id)
              FROM symptoms s
              LEFT JOIN symptom_categories c ON c.id = s.category_id
-             LEFT JOIN medicine_symptoms ms ON ms.symptom_id = s.id
+             LEFT JOIN (SELECT ms.symptom_id, ms.medicine_id FROM medicine_symptoms ms
+                        JOIN medicines m ON m.id = ms.medicine_id AND m.deleted_at IS NULL) ms
+                    ON ms.symptom_id = s.id
              GROUP BY s.id ORDER BY s.name",
         )
         .map_err(db_err)?;
@@ -75,7 +78,7 @@ pub fn list(conn: &Connection) -> Result<Vec<Symptom>, Error> {
 }
 
 fn clean_name(name: &str) -> Result<String, Error> {
-    let name = name.trim().to_lowercase();
+    let name = limits::text("the symptom name", name, limits::NAME_MAX, true)?.to_lowercase();
     if name.is_empty() {
         return Err(Error::invalid(
             "a symptom needs a name",
@@ -104,6 +107,7 @@ pub fn create(
     category_id: Option<i64>,
     medicine_ids: &[i64],
 ) -> Result<i64, Error> {
+    limits::list_len("the medicine list", medicine_ids.len())?;
     let name = clean_name(name)?;
     tx.execute(
         "INSERT INTO symptoms (name, category_id) VALUES (?1, ?2)",

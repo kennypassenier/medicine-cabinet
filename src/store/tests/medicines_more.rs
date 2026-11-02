@@ -22,13 +22,13 @@ fn stock_adjustments_add_subtract_and_never_go_below_zero() {
     let stock = |tx: &chassis::storage::rusqlite::Transaction| {
         medicines::get(tx, id, today()).unwrap().stock
     };
-    medicines::adjust_stock(&tx, id, 2.5).unwrap();
+    crate::store::stock::adjust_stock(&tx, id, 2.5).unwrap();
     assert_eq!(stock(&tx), 7.5);
-    medicines::adjust_stock(&tx, id, -7.5).unwrap();
+    crate::store::stock::adjust_stock(&tx, id, -7.5).unwrap();
     assert_eq!(stock(&tx), 0.0);
-    medicines::adjust_stock(&tx, id, -3.0).unwrap();
+    crate::store::stock::adjust_stock(&tx, id, -3.0).unwrap();
     assert_eq!(stock(&tx), 0.0, "the floor is zero");
-    medicines::adjust_stock(&tx, id, 1.0).unwrap();
+    crate::store::stock::adjust_stock(&tx, id, 1.0).unwrap();
     assert_eq!(stock(&tx), 1.0, "and it recovers from the floor");
 }
 

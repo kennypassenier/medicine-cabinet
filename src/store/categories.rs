@@ -5,6 +5,7 @@ use chassis::storage::rusqlite::{Connection, Transaction, params};
 use serde::Serialize;
 
 use super::{db_err, not_found};
+use crate::domain::limits;
 
 #[derive(Debug, Serialize)]
 pub struct Category {
@@ -34,7 +35,7 @@ pub fn list(conn: &Connection) -> Result<Vec<Category>, Error> {
 }
 
 fn clean_name(name: &str) -> Result<String, Error> {
-    let name = name.trim().to_string();
+    let name = limits::text("the category name", name, limits::NAME_MAX, true)?;
     if name.is_empty() {
         return Err(Error::invalid(
             "a category needs a name",
@@ -57,6 +58,7 @@ fn name_taken(e: chassis::storage::rusqlite::Error, name: &str) -> Error {
 /// Create a category. `symptom_ids` files those symptoms under it, which is how an
 /// undo of a delete brings the old grouping back.
 pub fn create(tx: &Transaction, name: &str, symptom_ids: &[i64]) -> Result<i64, Error> {
+    limits::list_len("the symptom list", symptom_ids.len())?;
     let name = clean_name(name)?;
     tx.execute("INSERT INTO symptom_categories (name) VALUES (?1)", [&name])
         .map_err(|e| name_taken(e, &name))?;

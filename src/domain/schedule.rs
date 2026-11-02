@@ -3,7 +3,8 @@
 use chassis::Error;
 use serde::{Deserialize, Serialize};
 
-use super::date::{Date, parse_minutes};
+use super::date::{Date, clock_text, parse_minutes};
+use super::limits;
 
 /// One repeating slot: a time of day on some weekdays.
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
@@ -26,20 +27,16 @@ fn one() -> f64 {
 }
 
 impl SlotInput {
-    pub fn validated(self) -> Result<Self, Error> {
-        parse_minutes(&self.time)?;
+    pub fn validated(mut self) -> Result<Self, Error> {
+        // Stored as canonical HH:MM, so "8:00" can never miss a logged intake.
+        self.time = clock_text(parse_minutes(self.time.trim())?);
         if self.days == 0 || self.days > 0b111_1111 {
             return Err(Error::invalid(
                 "a schedule slot needs at least one weekday",
                 "pick one or more days",
             ));
         }
-        if self.dose <= 0.0 {
-            return Err(Error::invalid(
-                "a dose must be more than zero",
-                "enter the amount taken at once",
-            ));
-        }
+        self.dose = limits::amount("a dose", self.dose, true)?;
         Ok(self)
     }
 
@@ -154,6 +151,30 @@ mod tests {
             .validated()
             .is_err()
         );
+    }
+
+    #[test]
+    fn slot_times_are_stored_canonically_and_doses_bounded() {
+        let ok = SlotInput {
+            time: " 08:05 ".into(),
+            days: 1,
+            dose: 0.5,
+        };
+        assert_eq!(ok.validated().unwrap().time, "08:05");
+        for dose in [f64::NAN, f64::INFINITY, -1.0, 1e12] {
+            let slot = SlotInput {
+                time: "08:00".into(),
+                days: 1,
+                dose,
+            };
+            assert!(slot.validated().is_err());
+        }
+        let late = SlotInput {
+            time: "8:00".into(),
+            days: 128,
+            dose: 1.0,
+        };
+        assert!(late.validated().is_err());
     }
 
     #[test]

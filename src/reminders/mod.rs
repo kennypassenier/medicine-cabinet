@@ -8,9 +8,9 @@ use std::time::Duration;
 use chassis::Error;
 use chassis::shell::notify::Notifier;
 use chassis::storage::AppDb;
-use chrono::{Datelike, Timelike, Utc};
 
 use crate::attention::attention_for;
+use crate::clock::now_in;
 use crate::config::ReminderConfig;
 use crate::dayplan::day_slots;
 use crate::domain::date::Date;
@@ -36,17 +36,10 @@ pub fn spawn(db: AppDb, notifier: Notifier, config: ReminderConfig) {
 
 /// One pass: find what is due, mark it sent, then notify.
 async fn tick(db: &AppDb, notifier: &Notifier, config: ReminderConfig) -> Result<(), Error> {
-    let local = Utc::now().with_timezone(&config.timezone);
-    let today = Date::parse(&format!(
-        "{:04}-{:02}-{:02}",
-        local.year(),
-        local.month(),
-        local.day()
-    ))?;
-    let minute = local.hour() * 60 + local.minute();
-    let digest_due = local.hour() >= config.digest_hour;
+    let now = now_in(config.timezone);
+    let digest_due = now.hour >= config.digest_hour;
     let reminders = db
-        .write(move |tx| collect(tx, today, minute, digest_due))
+        .write(move |tx| collect(tx, now.date, now.minute, digest_due))
         .await?;
     for r in reminders {
         notifier.emit(r.kind, env!("CARGO_PKG_VERSION"), r.text);

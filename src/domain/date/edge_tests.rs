@@ -142,10 +142,10 @@ fn dates_order_chronologically() {
 fn minutes_accept_boundaries_and_reject_overflow() {
     assert_eq!(parse_minutes("00:00").unwrap(), 0);
     assert_eq!(parse_minutes("23:59").unwrap(), 1439);
-    assert_eq!(parse_minutes("9:05").unwrap(), 545);
+    assert_eq!(parse_minutes("09:05").unwrap(), 545);
     assert_eq!(parse_minutes("2026-10-30 07:15").unwrap(), 435);
     for bad in [
-        "24:00", "12:60", "", "noon", "12", "12:", ":30", "-1:30", "ab:cd",
+        "24:00", "12:60", "9:05", "", "noon", "12", "12:", ":30", "-1:30", "ab:cd",
     ] {
         assert!(parse_minutes(bad).is_err(), "'{bad}' should not parse");
     }

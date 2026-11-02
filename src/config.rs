@@ -54,18 +54,70 @@ impl ReminderConfig {
     }
 }
 
-/// The calendar hub, optional: without an address the sync stays off.
-pub fn hub_from_env() -> Option<crate::agenda::HubConfig> {
-    let base = std::env::var("MEDICINE_CABINET_ALMANAC_URL").ok()?;
-    let token = std::env::var("MEDICINE_CABINET_ALMANAC_TOKEN").ok()?;
-    let source_id = std::env::var("MEDICINE_CABINET_ALMANAC_SOURCE")
-        .unwrap_or_else(|_| "medicine-cabinet".into());
-    let base_url = base.trim().trim_end_matches('/').to_string();
-    (!base_url.is_empty() && !token.trim().is_empty()).then(|| crate::agenda::HubConfig {
-        base_url,
+const URL_VAR: &str = "MEDICINE_CABINET_ALMANAC_URL";
+const TOKEN_VAR: &str = "MEDICINE_CABINET_ALMANAC_TOKEN";
+const SOURCE_VAR: &str = "MEDICINE_CABINET_ALMANAC_SOURCE";
+
+/// The calendar hub, optional: without an address the sync stays off. An
+/// address without a token (or the reverse), or an address that is not an
+/// http(s) URL, is a mistake worth stopping the start for, not a sync that
+/// silently never runs.
+pub fn hub_from_env() -> Result<Option<crate::agenda::HubConfig>, Error> {
+    let get = |name: &str| {
+        std::env::var(name)
+            .ok()
+            .map(|v| v.trim().to_string())
+            .filter(|v| !v.is_empty())
+    };
+    parse_hub(get(URL_VAR), get(TOKEN_VAR), get(SOURCE_VAR))
+}
+
+fn parse_hub(
+    url: Option<String>,
+    token: Option<String>,
+    source: Option<String>,
+) -> Result<Option<crate::agenda::HubConfig>, Error> {
+    let (base, token) = match (url, token) {
+        (None, None) => return Ok(None),
+        (Some(base), Some(token)) => (base, token),
+        (Some(_), None) => {
+            return Err(Error::config(
+                format!("{URL_VAR} is set but {TOKEN_VAR} is not"),
+                format!(
+                    "set {TOKEN_VAR} to the source's token, or unset {URL_VAR} to turn the calendar sync off"
+                ),
+            ));
+        }
+        (None, Some(_)) => {
+            return Err(Error::config(
+                format!("{TOKEN_VAR} is set but {URL_VAR} is not"),
+                format!(
+                    "set {URL_VAR} to the hub's address, or unset {TOKEN_VAR} to turn the calendar sync off"
+                ),
+            ));
+        }
+    };
+    if !(base.starts_with("http://") || base.starts_with("https://")) {
+        return Err(Error::config(
+            format!("{URL_VAR} must start with http:// or https://"),
+            "use an address such as http://10.10.10.12:8080",
+        ));
+    }
+    let source_id = source.unwrap_or_else(|| "medicine-cabinet".into());
+    let safe = source_id
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '.'));
+    if !safe {
+        return Err(Error::config(
+            format!("{SOURCE_VAR} may only hold letters, digits, '-', '_' and '.'"),
+            "use the source id Almanac shows for this app",
+        ));
+    }
+    Ok(Some(crate::agenda::HubConfig {
+        base_url: base.trim_end_matches('/').to_string(),
         source_id,
-        token: token.trim().to_string(),
-    })
+        token,
+    }))
 }
 
 #[cfg(test)]
@@ -82,6 +134,23 @@ mod tests {
     fn reads_a_zone_and_an_hour() {
         let c = ReminderConfig::parse(Some("Europe/Brussels".into()), Some("7".into())).unwrap();
         assert_eq!((c.timezone, c.digest_hour), (Tz::Europe__Brussels, 7));
+    }
+
+    #[test]
+    fn the_hub_is_all_or_nothing() {
+        assert!(parse_hub(None, None, None).unwrap().is_none());
+        let on = parse_hub(Some("http://hub:1/".into()), Some("t".into()), None).unwrap();
+        assert_eq!(on.unwrap().base_url, "http://hub:1");
+        for (u, t, s) in [
+            (Some("http://hub"), None, None),
+            (None, Some("t"), None),
+            (Some("hub:80"), Some("t"), None),
+            (Some("http://hub"), Some("t"), Some("a/b")),
+        ] {
+            let err = parse_hub(u.map(Into::into), t.map(Into::into), s.map(Into::into));
+            let err = err.unwrap_err();
+            assert!(!err.remedy.is_empty());
+        }
     }
 
     #[test]
