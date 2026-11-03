@@ -17,7 +17,7 @@ export { judge } from "./medicine.js";
 const nocase = (s) => s.replace(/[A-Z]/g, (c) => c.toLowerCase());
 
 /** The server's list order: switched-on first, then by name. @param {any} a @param {any} b */
-function serverOrder(a, b) {
+export function serverOrder(a, b) {
   if (a.active !== b.active) return a.active ? -1 : 1;
   const x = nocase(a.name);
   const y = nocase(b.name);

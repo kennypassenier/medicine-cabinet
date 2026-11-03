@@ -10,6 +10,7 @@ import { route } from "./routes.js";
 import { button, linkButton, pageHeader, reportError } from "./ui.js";
 import { drawShell, markNav } from "./shell.js";
 import { mayLeave } from "./leave.js";
+import { startLocal } from "./local.js";
 
 const page = /** @type {HTMLElement} */ (document.getElementById("page"));
 const tools = /** @type {HTMLElement} */ (document.getElementById("tools"));
@@ -114,4 +115,5 @@ addEventListener("popstate", async () => {
 });
 
 void drawShell(route(trimPath(location.pathname), location.search)?.bar ?? "");
-void render();
+// The first screen draws from the local database, after its first sync (at most a moment; offline it is the stored copy).
+void startLocal().then(() => render());

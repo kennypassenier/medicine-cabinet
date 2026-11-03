@@ -1,115 +1,14 @@
-// The transport layer: one place that talks to /api/mc. Every call that
-// depends on the time carries the browser's local clock (`now=`); the server
-// is the only source of truth, nothing is kept in browser storage.
+// The data layer the pages call. Reads come from the browser's local database
+// and writes go through the kit's queue (see ./store/); the server stays the
+// master and answers every write that is replayed. The names and result
+// shapes are those of the server's /api/mc routes.
 
-import { nowParam, dayParam } from "./clock.js";
+import { dayParam } from "./clock.js";
+import { store } from "./store/index.js";
 
-const BASE = "/api/mc";
+export { ApiError } from "./api-error.js";
 
-/** An API failure with the server's own sentence and its remedy. */
-export class ApiError extends Error {
-  /** @param {string} message @param {string} remedy @param {number} status */
-  constructor(message, remedy, status) {
-    super(message);
-    this.name = "ApiError";
-    this.remedy = remedy;
-    this.status = status;
-  }
-}
-
-/**
- * @param {string} method
- * @param {string} path
- * @param {{ query?: Record<string, string | number | undefined>, body?: unknown, timed?: boolean }} [opts]
- */
-async function call(method, path, { query = {}, body, timed = false } = {}) {
-  const params = new URLSearchParams();
-  if (timed) params.set("now", nowParam());
-  for (const [k, v] of Object.entries(query)) if (v !== undefined && v !== "") params.set(k, String(v));
-  const qs = params.toString();
-  let res;
-  try {
-    res = await fetch(`${BASE}${path}${qs ? `?${qs}` : ""}`, {
-      method,
-      credentials: "same-origin",
-      headers: body === undefined ? {} : { "content-type": "application/json" },
-      body: body === undefined ? undefined : JSON.stringify(body),
-    });
-  } catch {
-    throw new ApiError("The server could not be reached.", "Check the connection and try again.", 0);
-  }
-  if (res.redirected && res.url.includes("/login")) {
-    location.assign("/login");
-    throw new ApiError("Your session has ended.", "Log in again.", 401);
-  }
-  if (!res.ok) throw await failure(res);
-  try {
-    return await res.json();
-  } catch {
-    // A 200 that is not JSON: a proxy or captive page answered instead of the service.
-    throw new ApiError("The answer from the server could not be read.", "Reload the page; if it keeps happening, check the connection or log in again.", res.status);
-  }
-}
-
-/** What to do next, by the kind of refusal. @param {number} status */
-const remedyFor = (status) => {
-  if (status === 401 || status === 403) return "Log in again.";
-  if (status >= 500) return "The server had a problem. Try again in a moment.";
-  return "Check the entries and try again.";
-};
-
-/** @param {Response} res */
-async function failure(res) {
-  const text = await res.text();
-  try {
-    const j = JSON.parse(text);
-    if (j && typeof j.error === "string") return new ApiError(j.error, j.remedy ?? "", res.status);
-  } catch {
-    // Not JSON: the framework's plain-text refusal, shown as it is.
-  }
-  // A plain-text body is shown only for a short client refusal; a 5xx body (panic text, a proxy's HTML page) never reaches a toast.
-  const plain = res.status < 500 && text.trim().length <= 200 ? text.trim() : "";
-  return new ApiError(plain || `The server answered ${res.status}.`, remedyFor(res.status), res.status);
-}
-
-export const api = {
-  medicines: () => call("GET", "/medicines", { timed: true }),
-  medicine: (/** @type {number} */ id) => call("GET", `/medicines/${id}`, { timed: true }),
-  create: (/** @type {object} */ body) => call("POST", "/medicines", { timed: true, body }),
-  update: (/** @type {number} */ id, /** @type {object} */ body) => call("PUT", `/medicines/${id}`, { timed: true, body }),
-  remove: (/** @type {number} */ id) => call("DELETE", `/medicines/${id}`),
-  /** Bring back a medicine deleted in the last 14 days. */
-  restore: (/** @type {number} */ id) => call("POST", `/medicines/${id}/restore`, { timed: true }),
-  setActive: (/** @type {number} */ id, /** @type {boolean} */ active) => call("POST", `/medicines/${id}/active`, { timed: true, body: { active } }),
-  addStock: (/** @type {number} */ id, /** @type {number} */ delta) => call("POST", `/medicines/${id}/stock`, { timed: true, body: { delta } }),
-  doseCheck: (/** @type {number} */ id) => call("GET", `/medicines/${id}/dose-check`, { timed: true }),
-  today: () => call("GET", "/today", { timed: true }),
-  search: (/** @type {string} */ symptom) => call("GET", "/search", { timed: true, query: { symptom } }),
-  symptoms: () => call("GET", "/symptoms"),
-  addSymptom: (/** @type {{ name: string, category_id: number | null, medicine_ids?: number[] }} */ b) => call("POST", "/symptoms", { body: b }),
-  editSymptom: (/** @type {number} */ id, /** @type {{ name: string, category_id: number | null }} */ b) => call("PUT", `/symptoms/${id}`, { body: b }),
-  removeSymptom: (/** @type {number} */ id) => call("DELETE", `/symptoms/${id}`),
-  categories: () => call("GET", "/categories"),
-  addCategory: (/** @type {string} */ name, /** @type {number[]} */ symptomIds = []) => call("POST", "/categories", { body: { name, symptom_ids: symptomIds } }),
-  editCategory: (/** @type {number} */ id, /** @type {string} */ name) => call("PUT", `/categories/${id}`, { body: { name } }),
-  removeCategory: (/** @type {number} */ id) => call("DELETE", `/categories/${id}`),
-  forms: () => call("GET", "/forms"),
-  addForm: (/** @type {{ name: string, unit: string, medicine_ids?: number[] }} */ b) => call("POST", "/forms", { body: b }),
-  editForm: (/** @type {number} */ id, /** @type {{ name: string, unit: string }} */ b) => call("PUT", `/forms/${id}`, { body: b }),
-  removeForm: (/** @type {number} */ id) => call("DELETE", `/forms/${id}`),
-  intakes: (/** @type {string | undefined} */ day, limit = 200) => call("GET", "/intakes", { query: { day, limit } }),
-  /**
-   * Record an intake now (or at `takenAt`). `plannedFor` ties it to a schedule slot.
-   * @param {{ medicineId: number, status: "taken" | "skipped", plannedFor?: string | null, dose?: number, note?: string, takenAt?: string }} i
-   */
-  logIntake: (i) =>
-    call("POST", "/intakes", {
-      body: { medicine_id: i.medicineId, taken_at: i.takenAt ?? nowParam(), planned_for: i.plannedFor ?? null, status: i.status, dose: i.dose, note: i.note },
-    }),
-  /** Correct a logged intake; the stock follows on the server. @param {number} id @param {{ taken_at: string, dose: number, note: string }} b */
-  editIntake: (id, b) => call("PUT", `/intakes/${id}`, { body: b }),
-  undoIntake: (/** @type {number} */ id) => call("DELETE", `/intakes/${id}`),
-};
+export const api = store;
 
 /** The planned stamp of a schedule slot today: "YYYY-MM-DDTHH:MM". @param {string} time "HH:MM" */
 export const plannedToday = (time) => `${dayParam()}T${time}`;
