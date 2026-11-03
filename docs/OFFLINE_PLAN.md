@@ -1,42 +1,59 @@
-# Offline plan (not built yet)
+# Offline plan
 
-Kenny's standing rule (2026-11-02): a PWA keeps much of its data offline, in
-its own browser database, and syncs with the server. The app does not build its
-own store; it uses the kit's `window.chassisData` (chassis-rs 4.3.0,
-`docs/OFFLINE_DESIGN.md` in that repo). Gaps go to `kp-gaps/chassis-rs.md`.
+Kenny's standing rule (2026-11-02): a PWA keeps much of its data offline in its
+own browser database and syncs with the server; the server is always the master.
+The app does not build its own store: it uses the kit's local database
+(`chassisData.configure({ db: true })`, chassis-rs 4.5.0, `docs/LOCAL_DB_DESIGN.md`
+in that repo). Gaps go to `~/Projects/kp-gaps/chassis-rs.md`.
 
-## What the kit gives
+Decided by Kenny (2026-11-03, form today-offline): **Vandaag is computed in the
+page**, in JavaScript, from the local database. `domain/plan.rs` and
+`check_dose` in `domain/schedule.rs` are the specification; the same cases go
+into a JavaScript test.
 
-- `configure({ name, rev, routes })`, then `get/put/patch/delete` by path.
-  A list route and an item route (`:id`) per resource; the copy is the last good
-  GET answer per path, query string included in the key.
-- Writes made without a connection are queued in order, replayed with
-  `If-Match`; a 409 moves the edit to a failed list (the person reviews it).
-- Server half: `IfMatch`, `Revisioned`, `Conflict` (u64 revisions, 409 body).
+## Shape
 
-## What this app needs to fit it
+Five collections, each a table of the app database with a `rev` column and a
+change-log entry written in the same transaction as every write
+(`tx.sync_upsert` / `tx.sync_delete`, `use chassis::storage::sync::SyncWrite`):
 
-1. **Revisions.** Every mutable table (medicines, symptoms, categories, forms,
-   intakes) needs a `rev` column (migration V8) that rises on each write, and its
-   routes answer `Revisioned` and check `IfMatch`.
-2. **The clock in the URL.** Calls carry `now=` (browser local time), so every
-   GET has a new cache key. Offline reads need keys without `now`: the data
-   routes (medicines, intakes, symptoms, categories, forms) are fetched without
-   it, and the time-dependent views are computed from them.
-3. **Today offline.** `/api/mc/today` is computed on the server
-   (`domain::plan`, `check_dose`). Offline, the page needs the same answer from
-   cached medicines and intakes. Either the plan rules are ported to a pure JS
-   module with the Rust tests as the spec, or the last `today` answer is kept as
-   a read-only snapshot. This is the one real design choice; Kenny decides it
-   with a form when the work starts.
-4. **Dose logging offline.** Take/Skip are append-only intakes: they queue
-   without conflicts. The stock deduction happens when the queue replays, so the
-   dose guard for as-needed medicines must also run in the page offline.
-5. **Undo** of a queued intake removes it from the queue instead of calling the
-   server.
+| collection | key | body served |
+|---|---|---|
+| `medicines` | `id` (as text) | the medicine with its slots |
+| `intakes` | `uid` (UUID text) | one logged dose |
+| `symptoms` | `id` | symptom with its category and medicine links |
+| `categories` | `id` | category |
+| `forms` | `id` | form (tablet, drops, ...) |
 
-## Order
+Registered with `app.sync_collection(SyncCollection::new("medicines").key("id")
+.rev("rev").routes("/api/mc/medicines", "/api/mc/medicines/:id"))` and one
+`app.sync_load(...)` adapter that returns the current JSON body per key.
 
-Wait for the chassis tag that carries the offline follow-ups on main (logout
-guard on every page, band language, failed-edits view), adopt it, then build
-1 to 5 in that order. No release before Kenny asks.
+Only **intakes** are created on the device (Take / Skip offline): the page makes
+the `uid` with `crypto.randomUUID()`, posts it, the server accepts a well-formed
+UUID it does not hold yet (`client_key`, `check_create`). Integer ids stay for
+everything else; creating a medicine, symptom, category or form needs a
+connection. Editing and deleting existing ones queue with `If-Match`.
+
+## Milestones (no release before Kenny asks)
+
+1. **Server feed.** Migration V8 (`rev` on the five tables, `uid` on intakes,
+   backfilled), every store write bumps `rev` and records the change, the
+   five collections and the load adapter, `IfMatch` / `Revisioned` on the write
+   routes, intake create with a client `uid` and an idempotency check.
+2. **Plan in JavaScript.** `web/js/plan/` : a pure module with the day plan and
+   the dose guard, plus a JavaScript test over the same cases as the Rust tests
+   (`node --test`, run only at a release).
+3. **Page on the local database.** `api.js` reads the five collections through
+   `chassisData.db.collection(...)`; Today, Cabinet, Symptoms, History and the
+   dose guard use them; Take / Skip / Undo go through the queue; the connection
+   band and the failed-edits drawer come from the kit.
+4. **Hardening.** Logout guard text, storage cap message, a Playwright
+   check of the offline round trip (Firefox), kp-gaps entries for what the kit
+   lacks.
+
+## What stays on the server
+
+Reminders, the Almanac sync, stock deduction (it happens when the intake write
+is accepted, as today), the strict date and amount validation. A write refused
+on replay goes to the kit's failed list and the server's version wins.
