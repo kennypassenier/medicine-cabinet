@@ -57,3 +57,18 @@ connection. Editing and deleting existing ones queue with `If-Match`.
 Reminders, the Almanac sync, stock deduction (it happens when the intake write
 is accepted, as today), the strict date and amount validation. A write refused
 on replay goes to the kit's failed list and the server's version wins.
+
+## Status (2026-11-03)
+
+Milestones 1 to 3 are built and merged on `adopt-chassis-next`. Checked in
+Firefox against a built binary: Today, Cabinet, Symptoms and History render
+after a full page reload with the network off; a Take made offline reaches the
+server once the connection returns and the stock drops once; undo of a queued
+Take empties the queue; an offline edit the server refuses (duplicate form
+name, 400) is shown by the kit's notice and the server's version wins.
+
+Known limits: creating a medicine, symptom, category or form needs a
+connection (the server hands out the id); offline stock does not account for
+queued intake edits or deletes; symptom, category and form counts stay stale
+until the next sync. Milestone 4 (hardening) is open: logout-guard wording,
+storage-cap message, a recorded Playwright round trip.
