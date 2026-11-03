@@ -5,17 +5,10 @@ use chassis::storage::rusqlite::Connection;
 use super::{categories, forms, intakes, medicines, symptoms};
 use crate::domain::date::Date;
 use crate::domain::medicine::MedicineInput;
-use crate::schema::ALL_SQL;
 use crate::store::intakes::{IntakeEdit, IntakeInput};
 
 pub(super) fn db() -> Connection {
-    let conn = Connection::open_in_memory().expect("in-memory database");
-    conn.execute_batch("PRAGMA foreign_keys = ON;")
-        .expect("pragma");
-    for sql in ALL_SQL {
-        conn.execute_batch(sql).expect("migration applies");
-    }
-    conn
+    crate::testkit::sync_db()
 }
 
 pub(super) fn today() -> Date {
@@ -210,3 +203,4 @@ mod intakes_more;
 mod lists_more;
 mod logs_more;
 mod medicines_more;
+mod sync_tests;

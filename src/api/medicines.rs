@@ -2,13 +2,17 @@
 
 use axum::Json;
 use axum::extract::State;
+use axum::response::{IntoResponse, Response};
 use chassis::storage::AppDb;
+use chassis::{Error, IfMatch, Revisioned};
 use serde::Deserialize;
 
+use super::guard::guarded;
 use super::{ApiResult, Clock};
 use crate::domain::medicine::MedicineInput;
 use crate::domain::schedule::SlotInput;
 use crate::store::medicines::{self, Medicine};
+use crate::store::sync_log::Coll;
 use crate::store::{slots, stock};
 use chassis::{ApiJson, ApiPath, ApiQuery};
 
@@ -65,28 +69,42 @@ pub async fn create(
 pub async fn replace(
     State(db): State<AppDb>,
     ApiPath(id): ApiPath<i64>,
+    if_match: IfMatch,
     ApiQuery(c): ApiQuery<Clock>,
     ApiJson(body): ApiJson<MedicineBody>,
-) -> ApiResult<Medicine> {
+) -> Result<Response, Error> {
     let today = c.date()?;
     let input = body.medicine.validated()?;
     let slot_list = validate_slots(body.slots)?;
-    db.write(move |tx| {
+    let done = guarded(&db, if_match, Coll::Medicines, id, move |tx| {
         medicines::update(tx, id, &input)?;
         slots::replace(tx, id, &slot_list)
     })
     .await?;
-    db.read(move |conn| medicines::get(conn, id, today))
-        .await
-        .map(Json)
+    match done {
+        Err(conflict) => Ok(conflict.into_response()),
+        Ok((rev, ())) => {
+            let m = db.read(move |conn| medicines::get(conn, id, today)).await?;
+            Ok(Revisioned::new(rev, m).into_response())
+        }
+    }
 }
 
 pub async fn remove(
     State(db): State<AppDb>,
     ApiPath(id): ApiPath<i64>,
-) -> ApiResult<serde_json::Value> {
-    db.write(move |tx| medicines::delete(tx, id)).await?;
-    Ok(Json(serde_json::json!({ "deleted": id })))
+    if_match: IfMatch,
+) -> Result<Response, Error> {
+    let done = guarded(&db, if_match, Coll::Medicines, id, move |tx| {
+        medicines::delete(tx, id)
+    })
+    .await?;
+    Ok(match done {
+        Err(conflict) => conflict.into_response(),
+        Ok((rev, ())) => {
+            Revisioned::new(rev, serde_json::json!({ "deleted": id, "rev": rev })).into_response()
+        }
+    })
 }
 
 /// Bring back a medicine deleted in the last two weeks.

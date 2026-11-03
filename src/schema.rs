@@ -2,6 +2,20 @@
 
 use chassis::storage::Migration;
 
+/// SQL that makes a version-4-shaped UUID (36 characters) from `randomblob`:
+/// used to backfill intakes and to give a server-made intake its `uid`.
+macro_rules! uid_sql {
+    () => {
+        "lower(hex(randomblob(4))) || '-' || lower(hex(randomblob(2))) || '-4' \
+         || substr(lower(hex(randomblob(2))), 2) || '-' \
+         || substr('89ab', 1 + (abs(random()) % 4), 1) \
+         || substr(lower(hex(randomblob(2))), 2) || '-' || lower(hex(randomblob(6)))"
+    };
+}
+
+/// [`uid_sql!`] as a value, for statements built at run time.
+pub const UID_SQL: &str = uid_sql!();
+
 const V1: &str = "
 CREATE TABLE medicines (
     id               INTEGER PRIMARY KEY,
@@ -120,6 +134,27 @@ const V7: &str = "
 ALTER TABLE intakes ADD COLUMN deducted REAL;
 ";
 
+/// Offline sync: every synced row carries a revision (starts at 1, bumped by
+/// each write), and an intake gets a stable `uid` (UUID text) the browser can
+/// make while offline. `idempotency_key` remembers the `Idempotency-Key` an
+/// intake was created with, so a replayed request is answered, not repeated.
+/// Existing intakes get a version-4-shaped `uid` from `randomblob`.
+const V8: &str = concat!(
+    "
+ALTER TABLE medicines ADD COLUMN rev INTEGER NOT NULL DEFAULT 1;
+ALTER TABLE symptoms ADD COLUMN rev INTEGER NOT NULL DEFAULT 1;
+ALTER TABLE symptom_categories ADD COLUMN rev INTEGER NOT NULL DEFAULT 1;
+ALTER TABLE medicine_forms ADD COLUMN rev INTEGER NOT NULL DEFAULT 1;
+ALTER TABLE intakes ADD COLUMN rev INTEGER NOT NULL DEFAULT 1;
+ALTER TABLE intakes ADD COLUMN uid TEXT;
+ALTER TABLE intakes ADD COLUMN idempotency_key TEXT;
+UPDATE intakes SET uid = ",
+    uid_sql!(),
+    ";
+CREATE UNIQUE INDEX intakes_by_uid ON intakes (uid);
+"
+);
+
 pub fn migrations() -> Vec<Migration> {
     vec![
         Migration::sql(V1),
@@ -129,10 +164,11 @@ pub fn migrations() -> Vec<Migration> {
         Migration::sql(V5),
         Migration::sql(V6),
         Migration::sql(V7),
+        Migration::sql(V8),
     ]
 }
 
 /// Every migration's SQL, in order, for tests that run the stores against an
 /// in-memory database.
 #[cfg(test)]
-pub const ALL_SQL: [&str; 7] = [V1, V2, V3, V4, V5, V6, V7];
+pub const ALL_SQL: [&str; 8] = [V1, V2, V3, V4, V5, V6, V7, V8];

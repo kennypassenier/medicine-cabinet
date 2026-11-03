@@ -1,12 +1,18 @@
 //! The intake log: what was taken or skipped, and when.
 
 use chassis::Error;
-use chassis::storage::rusqlite::{Connection, Transaction, params};
-use serde::{Deserialize, Serialize};
+use chassis::storage::rusqlite::{Transaction, params};
+use serde::Deserialize;
 
+use super::sync_log::{self, Coll};
 use super::{db_err, not_found, stock};
-use crate::domain::date::{Date, parse_datetime, parse_minutes};
+use crate::domain::date::parse_datetime;
 use crate::domain::limits;
+use crate::schema::UID_SQL;
+
+pub use super::intake_queries::{
+    Intake, find_held, get_by_uid, list, recent_taken_minutes_ago, resolve,
+};
 
 #[derive(Debug, Deserialize)]
 pub struct IntakeInput {
@@ -26,18 +32,6 @@ fn taken() -> String {
     "taken".into()
 }
 
-#[derive(Debug, Serialize)]
-pub struct Intake {
-    pub id: i64,
-    pub medicine_id: i64,
-    pub medicine_name: String,
-    pub taken_at: String,
-    pub planned_for: Option<String>,
-    pub status: String,
-    pub dose: f64,
-    pub note: String,
-}
-
 /// The columns every intake lookup needs.
 type Existing = (i64, String, f64, f64);
 
@@ -53,8 +47,23 @@ fn existing(tx: &Transaction, id: i64) -> Result<Existing, Error> {
     })
 }
 
-/// Record an intake; a taken dose also takes from the stock (never below zero).
-pub fn record(tx: &Transaction, i: &IntakeInput) -> Result<i64, Error> {
+/// What a recorded intake is called, for the answer to the request.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Recorded {
+    pub id: i64,
+    pub uid: String,
+    pub rev: u64,
+}
+
+/// The validated parts of an [`IntakeInput`].
+struct Checked {
+    taken_at: String,
+    planned_for: Option<String>,
+    note: String,
+    dose: f64,
+}
+
+fn check(tx: &Transaction, i: &IntakeInput) -> Result<Checked, Error> {
     if i.status != "taken" && i.status != "skipped" {
         return Err(Error::invalid(
             format!(
@@ -85,26 +94,72 @@ pub fn record(tx: &Transaction, i: &IntakeInput) -> Result<i64, Error> {
     if let Some(slot) = &planned_for {
         refuse_if_answered(tx, i.medicine_id, slot)?;
     }
-    let deducted = if i.status == "taken" {
-        stock::take_stock(tx, i.medicine_id, dose)?
+    Ok(Checked {
+        taken_at,
+        planned_for,
+        note,
+        dose,
+    })
+}
+
+/// Record an intake; a taken dose also takes from the stock (never below zero).
+#[cfg(test)]
+pub fn record(tx: &Transaction, i: &IntakeInput) -> Result<i64, Error> {
+    record_keyed(tx, i, None, None).map(|r| r.id)
+}
+
+/// [`record`] under a `uid` the browser made (the server makes one when
+/// `None`), remembering the `Idempotency-Key` the request carried.
+pub fn record_keyed(
+    tx: &Transaction,
+    i: &IntakeInput,
+    uid: Option<&str>,
+    idempotency_key: Option<&str>,
+) -> Result<Recorded, Error> {
+    let c = check(tx, i)?;
+    let taken = i.status == "taken";
+    let deducted = if taken {
+        stock::take_stock(tx, i.medicine_id, c.dose)?
     } else {
         0.0
     };
+    let sql = format!(
+        "INSERT INTO intakes (medicine_id, taken_at, planned_for, status, dose, note, deducted,
+                              uid, idempotency_key)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, COALESCE(?8, {UID_SQL}), ?9)"
+    );
     tx.execute(
-        "INSERT INTO intakes (medicine_id, taken_at, planned_for, status, dose, note, deducted)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+        &sql,
         params![
             i.medicine_id,
-            taken_at,
-            planned_for,
+            c.taken_at,
+            c.planned_for,
             i.status,
-            dose,
-            note,
-            deducted
+            c.dose,
+            c.note,
+            deducted,
+            uid,
+            idempotency_key
         ],
     )
     .map_err(db_err)?;
-    Ok(tx.last_insert_rowid())
+    let id = tx.last_insert_rowid();
+    sync_log::created(tx, Coll::Intakes, id)?;
+    if taken {
+        sync_log::touch(tx, Coll::Medicines, i.medicine_id)?;
+    }
+    held_by_id(tx, id)
+}
+
+fn held_by_id(tx: &Transaction, id: i64) -> Result<Recorded, Error> {
+    tx.query_row("SELECT uid, rev FROM intakes WHERE id = ?1", [id], |r| {
+        Ok(Recorded {
+            id,
+            uid: r.get(0)?,
+            rev: sync_log::read_rev(r, 1)?,
+        })
+    })
+    .map_err(db_err)
 }
 
 /// A scheduled dose is answered once; a double tap must not take twice.
@@ -152,80 +207,22 @@ pub fn edit(tx: &Transaction, id: i64, e: &IntakeEdit) -> Result<(), Error> {
         params![id, taken_at, dose, note, deducted],
     )
     .map_err(db_err)?;
+    sync_log::touch(tx, Coll::Intakes, id)?;
+    if status == "taken" {
+        sync_log::touch(tx, Coll::Medicines, medicine_id)?;
+    }
     Ok(())
 }
 
 /// Undo an intake: what a taken dose took goes back into the stock.
 pub fn undo(tx: &Transaction, id: i64) -> Result<(), Error> {
     let (medicine_id, status, _, deducted) = existing(tx, id)?;
+    sync_log::tombstone(tx, Coll::Intakes, id)?;
     tx.execute("DELETE FROM intakes WHERE id = ?1", [id])
         .map_err(db_err)?;
     if status == "taken" {
         stock::return_stock(tx, medicine_id, deducted)?;
+        sync_log::touch(tx, Coll::Medicines, medicine_id)?;
     }
     Ok(())
-}
-
-/// Intakes whose local time starts with `prefix` (a day, `YYYY-MM-DD`) or
-/// all of them newest first when `prefix` is empty, capped at `limit`.
-pub fn list(conn: &Connection, prefix: &str, limit: i64) -> Result<Vec<Intake>, Error> {
-    let mut stmt = conn
-        .prepare(
-            "SELECT i.id, i.medicine_id, m.name, i.taken_at, i.planned_for, i.status, i.dose, i.note
-             FROM intakes i JOIN medicines m ON m.id = i.medicine_id
-             WHERE m.deleted_at IS NULL AND substr(i.taken_at, 1, length(?1)) = ?1 ORDER BY i.taken_at DESC LIMIT ?2",
-        )
-        .map_err(db_err)?;
-    let rows = stmt
-        .query_map(params![prefix, limit], |r| {
-            Ok(Intake {
-                id: r.get(0)?,
-                medicine_id: r.get(1)?,
-                medicine_name: r.get(2)?,
-                taken_at: r.get(3)?,
-                planned_for: r.get(4)?,
-                status: r.get(5)?,
-                dose: r.get(6)?,
-                note: r.get(7)?,
-            })
-        })
-        .map_err(db_err)?;
-    rows.collect::<Result<_, _>>().map_err(db_err)
-}
-
-/// Taken-dose times of one medicine in the 48 hours before `now`, as
-/// minutes before `now` (for the as-needed dosing guard).
-pub fn recent_taken_minutes_ago(
-    conn: &Connection,
-    medicine_id: i64,
-    now_days: i64,
-    now_minutes: i64,
-) -> Result<Vec<i64>, Error> {
-    let mut stmt = conn
-        .prepare(
-            "SELECT taken_at FROM intakes WHERE medicine_id = ?1 AND status = 'taken'
-                  ORDER BY taken_at DESC LIMIT 50",
-        )
-        .map_err(db_err)?;
-    let rows = stmt
-        .query_map([medicine_id], |r| r.get::<_, String>(0))
-        .map_err(db_err)?;
-    let mut out = Vec::new();
-    let mut unreadable = 0;
-    for row in rows {
-        let text = row.map_err(db_err)?;
-        // A row written before times were validated must not block the guard.
-        let (Ok(day), Ok(minutes)) = (Date::parse(&text), parse_minutes(&text)) else {
-            unreadable += 1;
-            continue;
-        };
-        let ago = (now_days - day.to_days()) * 1440 + now_minutes - i64::from(minutes);
-        if ago >= 0 {
-            out.push(ago);
-        }
-    }
-    if unreadable > 0 {
-        eprintln!("dose guard: skipped {unreadable} intake(s) with an unreadable time");
-    }
-    Ok(out)
 }

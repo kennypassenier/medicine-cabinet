@@ -5,10 +5,13 @@ use chassis::storage::rusqlite::{Connection, Transaction, params};
 use serde::Serialize;
 
 use super::db_err;
+use super::sync_log::{self, Coll};
 use crate::domain::limits;
 
 /// Replace the symptom links of one medicine with exactly `names`.
 pub fn set_for_medicine(tx: &Transaction, medicine_id: i64, names: &[String]) -> Result<(), Error> {
+    const LINKED: &str = "SELECT symptom_id FROM medicine_symptoms WHERE medicine_id = ?1";
+    let mut changed = sync_log::ids(tx, LINKED, medicine_id)?;
     tx.execute(
         "DELETE FROM medicine_symptoms WHERE medicine_id = ?1",
         [medicine_id],
@@ -24,7 +27,11 @@ pub fn set_for_medicine(tx: &Transaction, medicine_id: i64, names: &[String]) ->
         )
         .map_err(db_err)?;
     }
-    Ok(())
+    // Symptoms count their medicines: the old links and the new ones changed.
+    changed.extend(sync_log::ids(tx, LINKED, medicine_id)?);
+    changed.sort_unstable();
+    changed.dedup();
+    sync_log::touch_all(tx, Coll::Symptoms, &changed)
 }
 
 pub fn for_medicine(conn: &Connection, medicine_id: i64) -> Result<Vec<String>, Error> {
@@ -45,36 +52,46 @@ pub fn for_medicine(conn: &Connection, medicine_id: i64) -> Result<Vec<String>, 
 #[derive(Debug, Serialize)]
 pub struct Symptom {
     pub id: i64,
+    pub rev: u64,
     pub name: String,
     pub category_id: Option<i64>,
     pub category: Option<String>,
     pub medicines: i64,
 }
 
-pub fn list(conn: &Connection) -> Result<Vec<Symptom>, Error> {
-    let mut stmt = conn
-        .prepare(
-            "SELECT s.id, s.name, s.category_id, c.name, COUNT(ms.medicine_id)
-             FROM symptoms s
-             LEFT JOIN symptom_categories c ON c.id = s.category_id
-             LEFT JOIN (SELECT ms.symptom_id, ms.medicine_id FROM medicine_symptoms ms
-                        JOIN medicines m ON m.id = ms.medicine_id AND m.deleted_at IS NULL) ms
-                    ON ms.symptom_id = s.id
-             GROUP BY s.id ORDER BY s.name",
-        )
-        .map_err(db_err)?;
+const LIST_SQL: &str = "SELECT s.id, s.name, s.category_id, c.name, COUNT(ms.medicine_id), s.rev
+     FROM symptoms s
+     LEFT JOIN symptom_categories c ON c.id = s.category_id
+     LEFT JOIN (SELECT ms.symptom_id, ms.medicine_id FROM medicine_symptoms ms
+                JOIN medicines m ON m.id = ms.medicine_id AND m.deleted_at IS NULL) ms
+            ON ms.symptom_id = s.id
+     WHERE (?1 IS NULL OR s.id = ?1)
+     GROUP BY s.id ORDER BY s.name";
+
+fn query(conn: &Connection, only: Option<i64>) -> Result<Vec<Symptom>, Error> {
+    let mut stmt = conn.prepare(LIST_SQL).map_err(db_err)?;
     let rows = stmt
-        .query_map([], |r| {
+        .query_map([only], |r| {
             Ok(Symptom {
                 id: r.get(0)?,
                 name: r.get(1)?,
                 category_id: r.get(2)?,
                 category: r.get(3)?,
                 medicines: r.get(4)?,
+                rev: sync_log::read_rev(r, 5)?,
             })
         })
         .map_err(db_err)?;
     rows.collect::<Result<_, _>>().map_err(db_err)
+}
+
+pub fn list(conn: &Connection) -> Result<Vec<Symptom>, Error> {
+    query(conn, None)
+}
+
+/// One symptom as the list shows it, for the offline feed.
+pub fn get(conn: &Connection, id: i64) -> Result<Option<Symptom>, Error> {
+    Ok(query(conn, Some(id))?.pop())
 }
 
 fn clean_name(name: &str) -> Result<String, Error> {
@@ -123,6 +140,10 @@ pub fn create(
         )
         .map_err(db_err)?;
     }
+    sync_log::created(tx, Coll::Symptoms, id)?;
+    sync_log::touch_opt(tx, Coll::Categories, category_id)?;
+    // The linked medicines list this symptom by name.
+    sync_log::touch_all(tx, Coll::Medicines, medicine_ids)?;
     Ok(id)
 }
 
@@ -133,6 +154,13 @@ pub fn update(
     category_id: Option<i64>,
 ) -> Result<(), Error> {
     let name = clean_name(name)?;
+    let old_category: Option<Option<i64>> = tx
+        .query_row(
+            "SELECT category_id FROM symptoms WHERE id = ?1",
+            [id],
+            |r| r.get(0),
+        )
+        .ok();
     let changed = tx
         .execute(
             "UPDATE symptoms SET name = ?2, category_id = ?3 WHERE id = ?1",
@@ -142,7 +170,16 @@ pub fn update(
     if changed == 0 {
         return Err(super::not_found("symptom", id));
     }
-    Ok(())
+    sync_log::touch(tx, Coll::Symptoms, id)?;
+    // Categories count their symptoms; linked medicines list it by name.
+    sync_log::touch_opt(tx, Coll::Categories, old_category.flatten())?;
+    sync_log::touch_opt(tx, Coll::Categories, category_id)?;
+    let linked = sync_log::ids(
+        tx,
+        "SELECT medicine_id FROM medicine_symptoms WHERE symptom_id = ?1",
+        id,
+    )?;
+    sync_log::touch_all(tx, Coll::Medicines, &linked)
 }
 
 /// What a delete removed, so an undo can put it back.
@@ -171,8 +208,11 @@ pub fn delete(tx: &Transaction, id: i64) -> Result<DeletedSymptom, Error> {
         .collect::<Result<Vec<_>, _>>()
         .map_err(db_err)?;
     drop(stmt);
+    sync_log::tombstone(tx, Coll::Symptoms, id)?;
     tx.execute("DELETE FROM symptoms WHERE id = ?1", [id])
         .map_err(db_err)?;
+    sync_log::touch_opt(tx, Coll::Categories, category_id)?;
+    sync_log::touch_all(tx, Coll::Medicines, &medicine_ids)?;
     Ok(DeletedSymptom {
         name,
         category_id,

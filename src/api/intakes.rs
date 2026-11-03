@@ -2,15 +2,19 @@
 
 use axum::Json;
 use axum::extract::State;
+use axum::response::{IntoResponse, Response};
 use chassis::storage::AppDb;
 use serde::Deserialize;
 
 use super::{ApiResult, Clock};
 use crate::domain::date::Date;
 use crate::domain::schedule::{DoseVerdict, PastDose, check_dose};
-use crate::store::intakes::{self, Intake, IntakeEdit, IntakeInput};
+use crate::store::intakes::{self, Intake, IntakeEdit};
 use crate::store::medicines;
-use chassis::{ApiJson, ApiPath, ApiQuery};
+use crate::store::sync_log::Coll;
+use chassis::{ApiJson, ApiPath, ApiQuery, Error, IfMatch, Revisioned};
+
+use super::guard::guarded;
 
 #[derive(Debug, Deserialize)]
 pub struct ListQuery {
@@ -34,28 +38,31 @@ pub async fn list(
         .map(Json)
 }
 
-pub async fn record(
-    State(db): State<AppDb>,
-    ApiJson(input): ApiJson<IntakeInput>,
-) -> ApiResult<serde_json::Value> {
-    let id = db.write(move |tx| intakes::record(tx, &input)).await?;
-    Ok(Json(serde_json::json!({ "id": id })))
-}
-
-/// Correct the time, dose or note of a logged intake.
+/// Correct the time, dose or note of a logged intake (addressed by id or `uid`).
 pub async fn edit(
     State(db): State<AppDb>,
-    ApiPath(id): ApiPath<i64>,
+    ApiPath(reference): ApiPath<String>,
+    if_match: IfMatch,
     ApiJson(edit): ApiJson<IntakeEdit>,
-) -> ApiResult<serde_json::Value> {
-    db.write(move |tx| intakes::edit(tx, id, &edit)).await?;
-    Ok(Json(serde_json::json!({ "id": id })))
+) -> Result<Response, Error> {
+    let id = db.read(move |c| intakes::resolve(c, &reference)).await?;
+    let done = guarded(&db, if_match, Coll::Intakes, id, move |tx| {
+        intakes::edit(tx, id, &edit)
+    })
+    .await?;
+    Ok(match done {
+        Err(conflict) => conflict.into_response(),
+        Ok((rev, ())) => {
+            Revisioned::new(rev, serde_json::json!({ "id": id, "rev": rev })).into_response()
+        }
+    })
 }
 
 pub async fn undo(
     State(db): State<AppDb>,
-    ApiPath(id): ApiPath<i64>,
+    ApiPath(reference): ApiPath<String>,
 ) -> ApiResult<serde_json::Value> {
+    let id = db.read(move |c| intakes::resolve(c, &reference)).await?;
     db.write(move |tx| intakes::undo(tx, id)).await?;
     Ok(Json(serde_json::json!({ "undone": id })))
 }

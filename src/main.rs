@@ -19,13 +19,14 @@ mod schema;
 #[cfg(debug_assertions)]
 mod seed;
 mod store;
+mod sync;
 #[cfg(test)]
 mod testkit;
 
 use axum::Router;
 use chassis::shell::pages::Page;
 use chassis::shell::webapp::WebApp;
-use chassis::storage::AppDbSpec;
+use chassis::storage::{AppDbSpec, ImportReport};
 use chassis::{App, AppSpec};
 
 mod embedded {
@@ -62,7 +63,13 @@ async fn main() -> std::process::ExitCode {
         Ok(c) => c,
         Err(e) => return fail(e),
     };
-    let db = match app.app_db(AppDbSpec::new(schema::migrations())) {
+    let db = match app.app_db(AppDbSpec::new(schema::migrations()).with_import(|tx, _| {
+        // Runs once, in the open that first sees the offline feed: rows that
+        // predate it get their change-log entry (migrations run before the
+        // log exists, so a migration cannot do it).
+        let rows = store::sync_log::backfill(tx)? as u64;
+        Ok(ImportReport::new(rows, rows, Vec::new()))
+    })) {
         Ok(db) => db,
         Err(e) => return fail(e),
     };
@@ -74,6 +81,10 @@ async fn main() -> std::process::ExitCode {
         Ok(None) => {}
         Err(e) => return fail(e),
     }
+    for collection in sync::collections() {
+        app.sync_collection(collection);
+    }
+    app.sync_load(sync::Loader::new(reminder_config.timezone));
     app.dashboard_routes(api::router(db));
     app.webapp(WebApp::embedded(embedded::FILES));
     app.brand_title("Medicine cabinet");

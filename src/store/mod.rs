@@ -3,12 +3,15 @@
 pub mod agenda_sent;
 pub mod categories;
 pub mod forms;
+pub mod intake_queries;
 pub mod intakes;
+pub mod medicine_view;
 pub mod medicines;
 pub mod reminder_log;
 pub mod slots;
 pub mod stock;
 pub mod symptoms;
+pub mod sync_log;
 
 use chassis::Error;
 use chassis::storage::rusqlite;

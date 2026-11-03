@@ -4,6 +4,7 @@ use chassis::Error;
 use chassis::storage::rusqlite::{Connection, Transaction, params};
 
 use super::db_err;
+use super::sync_log::{self, Coll};
 use crate::domain::schedule::SlotInput;
 
 pub fn replace(tx: &Transaction, medicine_id: i64, slots: &[SlotInput]) -> Result<(), Error> {
@@ -20,7 +21,8 @@ pub fn replace(tx: &Transaction, medicine_id: i64, slots: &[SlotInput]) -> Resul
         )
         .map_err(db_err)?;
     }
-    Ok(())
+    // The slots are part of the medicine's body.
+    sync_log::touch(tx, Coll::Medicines, medicine_id).map(|_| ())
 }
 
 pub fn for_medicine(conn: &Connection, medicine_id: i64) -> Result<Vec<SlotInput>, Error> {

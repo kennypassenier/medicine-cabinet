@@ -4,34 +4,45 @@ use chassis::Error;
 use chassis::storage::rusqlite::{Connection, Transaction, params};
 use serde::Serialize;
 
+use super::sync_log::{self, Coll};
 use super::{db_err, not_found};
 use crate::domain::limits;
 
 #[derive(Debug, Serialize)]
 pub struct Category {
     pub id: i64,
+    pub rev: u64,
     pub name: String,
     pub symptoms: i64,
 }
 
-pub fn list(conn: &Connection) -> Result<Vec<Category>, Error> {
-    let mut stmt = conn
-        .prepare(
-            "SELECT c.id, c.name, COUNT(s.id) FROM symptom_categories c
-             LEFT JOIN symptoms s ON s.category_id = c.id
-             GROUP BY c.id ORDER BY c.name COLLATE NOCASE",
-        )
-        .map_err(db_err)?;
+const LIST_SQL: &str = "SELECT c.id, c.name, COUNT(s.id), c.rev FROM symptom_categories c
+     LEFT JOIN symptoms s ON s.category_id = c.id
+     WHERE (?1 IS NULL OR c.id = ?1)
+     GROUP BY c.id ORDER BY c.name COLLATE NOCASE";
+
+fn query(conn: &Connection, only: Option<i64>) -> Result<Vec<Category>, Error> {
+    let mut stmt = conn.prepare(LIST_SQL).map_err(db_err)?;
     let rows = stmt
-        .query_map([], |r| {
+        .query_map([only], |r| {
             Ok(Category {
                 id: r.get(0)?,
                 name: r.get(1)?,
                 symptoms: r.get(2)?,
+                rev: sync_log::read_rev(r, 3)?,
             })
         })
         .map_err(db_err)?;
     rows.collect::<Result<_, _>>().map_err(db_err)
+}
+
+pub fn list(conn: &Connection) -> Result<Vec<Category>, Error> {
+    query(conn, None)
+}
+
+/// One category as the list shows it, for the offline feed.
+pub fn get(conn: &Connection, id: i64) -> Result<Option<Category>, Error> {
+    Ok(query(conn, Some(id))?.pop())
 }
 
 fn clean_name(name: &str) -> Result<String, Error> {
@@ -63,14 +74,29 @@ pub fn create(tx: &Transaction, name: &str, symptom_ids: &[i64]) -> Result<i64, 
     tx.execute("INSERT INTO symptom_categories (name) VALUES (?1)", [&name])
         .map_err(|e| name_taken(e, &name))?;
     let id = tx.last_insert_rowid();
+    sync_log::created(tx, Coll::Categories, id)?;
+    file_symptoms(tx, id, symptom_ids)?;
+    Ok(id)
+}
+
+/// File symptoms under a category. Each symptom shows its category name, and
+/// the category it leaves counts one symptom fewer.
+fn file_symptoms(tx: &Transaction, category_id: i64, symptom_ids: &[i64]) -> Result<(), Error> {
     for symptom_id in symptom_ids {
+        let old = sync_log::ids(
+            tx,
+            "SELECT category_id FROM symptoms WHERE id = ?1 AND category_id IS NOT NULL",
+            *symptom_id,
+        )?;
         tx.execute(
             "UPDATE symptoms SET category_id = ?2 WHERE id = ?1",
-            params![symptom_id, id],
+            params![symptom_id, category_id],
         )
         .map_err(db_err)?;
+        sync_log::touch(tx, Coll::Symptoms, *symptom_id)?;
+        sync_log::touch_all(tx, Coll::Categories, &old)?;
     }
-    Ok(id)
+    sync_log::touch(tx, Coll::Categories, category_id).map(|_| ())
 }
 
 pub fn rename(tx: &Transaction, id: i64, name: &str) -> Result<(), Error> {
@@ -84,7 +110,10 @@ pub fn rename(tx: &Transaction, id: i64, name: &str) -> Result<(), Error> {
     if changed == 0 {
         return Err(not_found("category", id));
     }
-    Ok(())
+    sync_log::touch(tx, Coll::Categories, id)?;
+    // Symptoms show the name of their category.
+    let members = sync_log::ids(tx, "SELECT id FROM symptoms WHERE category_id = ?1", id)?;
+    sync_log::touch_all(tx, Coll::Symptoms, &members)
 }
 
 /// What a delete removed, so an undo can put it back.
@@ -112,7 +141,9 @@ pub fn delete(tx: &Transaction, id: i64) -> Result<DeletedCategory, Error> {
         .collect::<Result<Vec<_>, _>>()
         .map_err(db_err)?;
     drop(stmt);
+    sync_log::tombstone(tx, Coll::Categories, id)?;
     tx.execute("DELETE FROM symptom_categories WHERE id = ?1", [id])
         .map_err(db_err)?;
+    sync_log::touch_all(tx, Coll::Symptoms, &symptom_ids)?;
     Ok(DeletedCategory { name, symptom_ids })
 }

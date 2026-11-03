@@ -1,6 +1,8 @@
 //! The JSON API the browser app talks to (behind the admin login).
 
 mod forms;
+mod guard;
+mod intake_create;
 mod intakes;
 mod medicines;
 mod search;
@@ -36,7 +38,10 @@ pub fn router(db: AppDb) -> Router {
             "/api/mc/medicines/{id}/dose-check",
             get(intakes::dose_check),
         )
-        .route("/api/mc/intakes", get(intakes::list).post(intakes::record))
+        .route(
+            "/api/mc/intakes",
+            get(intakes::list).post(intake_create::record),
+        )
         .route(
             "/api/mc/intakes/{id}",
             axum::routing::put(intakes::edit).delete(intakes::undo),

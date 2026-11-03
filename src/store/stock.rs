@@ -3,6 +3,7 @@
 use chassis::Error;
 use chassis::storage::rusqlite::{Transaction, params};
 
+use super::sync_log::{self, Coll};
 use super::{db_err, not_found};
 use crate::domain::limits;
 
@@ -18,11 +19,12 @@ pub fn adjust_stock(tx: &Transaction, id: i64, delta: f64) -> Result<(), Error> 
     if changed == 0 {
         return Err(not_found("medicine", id));
     }
-    Ok(())
+    sync_log::touch(tx, Coll::Medicines, id).map(|_| ())
 }
 
 /// Take up to `want` out of the stock for a logged dose; returns what was
 /// really taken (never more than there is), so an undo can give it back.
+/// The caller records the medicine's change (once per write, not per move).
 pub fn take_stock(tx: &Transaction, id: i64, want: f64) -> Result<f64, Error> {
     let stock: f64 = tx
         .query_row("SELECT stock FROM medicines WHERE id = ?1", [id], |r| {
@@ -38,7 +40,7 @@ pub fn take_stock(tx: &Transaction, id: i64, want: f64) -> Result<f64, Error> {
     Ok(taken)
 }
 
-/// Put back what [`take_stock`] took.
+/// Put back what [`take_stock`] took. The caller records the medicine's change.
 pub fn return_stock(tx: &Transaction, id: i64, amount: f64) -> Result<(), Error> {
     tx.execute(
         "UPDATE medicines SET stock = MIN(?3, stock + ?2) WHERE id = ?1",

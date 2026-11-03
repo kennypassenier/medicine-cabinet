@@ -124,6 +124,7 @@ mod tests {
     fn med() -> Medicine {
         Medicine {
             id: 3,
+            rev: 1,
             name: "Vitamin D".into(),
             purpose: String::new(),
             form: String::new(),
