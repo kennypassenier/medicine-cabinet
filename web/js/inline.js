@@ -121,7 +121,7 @@ export function addRow({ label, hint, accept, fields, onAdd }) {
   }
   go.addEventListener("click", () => void submit());
   for (const { el } of inputs) el.addEventListener("keydown", (e) => { if (e.key === "Enter" && el instanceof HTMLInputElement) { e.preventDefault(); void submit(); } });
-  const grid = h("div", { class: "kp-autogrid kp-autogrid--tight", style: "--kp-autogrid-min: 11rem; --kp-autogrid-pad: 0" }, ...inputs.map(({ el: i }) => i), go);
+  const grid = h("div", { class: "kp-autogrid kp-autogrid--tight mc-inline-grid" }, ...inputs.map(({ el: i }) => i), go);
   const el = h("div", { class: "kp-stack kp-gap-xs", role: "group", "aria-labelledby": `${id}-t` },
     h("strong", { id: `${id}-t` }, label), grid, ...inputs.map(({ list }) => list), err, h("p", { class: "kp-field__help kp-m-0" }, hint));
   return { el, focus: () => inputs[0].el.focus() };

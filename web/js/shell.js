@@ -53,8 +53,6 @@ function moreTab(places) {
       h("div", { class: "kp-menu kp-menu--rich", role: "group", "aria-label": "More pages" },
         ...places.map((p) => h("a", { class: "kp-menu__item", href: p.path },
           h("span", { class: "kp-menu__label" }, p.title), p.hint ? h("span", { class: "kp-menu__hint" }, p.hint) : null)))));
-  // The app routes a link in place, so the page never reloads and the drawer must close itself.
-  drawer.addEventListener("click", (e) => { if (/** @type {HTMLElement} */ (e.target).closest("a[href]")) drawer.close(); });
   tabbar.append(tab);
   document.body.append(drawer);
   attachDialogs(document);

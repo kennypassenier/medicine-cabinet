@@ -53,3 +53,6 @@
 .kp-listrow__identity *,
 .kp-action-list > li > :first-child,
 .kp-action-list > li > :first-child * { overflow-wrap: anywhere; }
+
+/* The inline add rows (name, unit, button on one line): a narrow minimum per field and no padding of their own. */
+.mc-inline-grid { --kp-autogrid-min: 11rem; --kp-autogrid-pad: 0; }
