@@ -152,17 +152,13 @@ fn shelf_life_crosses_a_leap_day() {
 #[test]
 fn stock_level_edges() {
     assert_eq!(
-        stock_level(5.0, Some(5.0)),
+        stock_level(500, Some(500)),
         StockLevel::Low,
         "at the threshold"
     );
-    assert_eq!(stock_level(5.1, Some(5.0)), StockLevel::Ok);
-    assert_eq!(stock_level(0.0, None), StockLevel::Out);
-    assert_eq!(stock_level(-1.0, None), StockLevel::Out);
-    assert_eq!(stock_level(0.5, Some(0.0)), StockLevel::Ok);
-    assert_eq!(
-        stock_level(0.0, Some(10.0)),
-        StockLevel::Out,
-        "out beats low"
-    );
+    assert_eq!(stock_level(510, Some(500)), StockLevel::Ok);
+    assert_eq!(stock_level(0, None), StockLevel::Out);
+    assert_eq!(stock_level(-100, None), StockLevel::Out);
+    assert_eq!(stock_level(50, Some(0)), StockLevel::Ok);
+    assert_eq!(stock_level(0, Some(1000)), StockLevel::Out, "out beats low");
 }

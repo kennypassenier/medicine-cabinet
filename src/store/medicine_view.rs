@@ -8,6 +8,7 @@ use serde::Serialize;
 use super::{db_err, not_found, slots, symptoms};
 use crate::domain::date::Date;
 use crate::domain::medicine::{Freshness, StockLevel, effective_expiry, freshness, stock_level};
+use crate::domain::quantity;
 use crate::domain::schedule::SlotInput;
 
 /// A medicine as the API returns it, with the judgements the UI shows.
@@ -45,7 +46,7 @@ pub struct Medicine {
 
 const COLUMNS: &str = "id, name, purpose,
     COALESCE((SELECT name FROM medicine_forms f WHERE f.id = medicines.form_id), ''), strength, notes, active, as_needed,
-    min_gap_minutes, max_per_day, stock, stock_unit, low_stock_at,
+    min_gap_minutes, max_per_day, stock_hundredths, stock_unit, low_stock_at_hundredths,
     expires_on, opened_on, shelf_life_days, course_ends_on, form_id, rev";
 
 fn read_row(r: &Row, today: Date) -> Result<Medicine, chassis::storage::rusqlite::Error> {
@@ -53,8 +54,8 @@ fn read_row(r: &Row, today: Date) -> Result<Medicine, chassis::storage::rusqlite
     let opened_on: Option<String> = r.get(14)?;
     let shelf_life_days: Option<u32> = r.get(15)?;
     let course_ends_on: Option<String> = r.get(16)?;
-    let stock: f64 = r.get(10)?;
-    let low_stock_at: Option<f64> = r.get(12)?;
+    let stock: i64 = r.get(10)?;
+    let low_stock_at: Option<i64> = r.get(12)?;
     let expiry = effective_expiry(expires_on.as_deref(), opened_on.as_deref(), shelf_life_days);
     let course_over = course_ends_on
         .as_deref()
@@ -73,9 +74,9 @@ fn read_row(r: &Row, today: Date) -> Result<Medicine, chassis::storage::rusqlite
         as_needed: r.get::<_, i64>(7)? != 0,
         min_gap_minutes: r.get(8)?,
         max_per_day: r.get(9)?,
-        stock,
+        stock: quantity::to_decimal(stock),
         stock_unit: r.get(11)?,
-        low_stock_at,
+        low_stock_at: low_stock_at.map(quantity::to_decimal),
         expires_on,
         opened_on,
         shelf_life_days,

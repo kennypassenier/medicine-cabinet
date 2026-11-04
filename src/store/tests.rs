@@ -199,6 +199,7 @@ fn deleting_a_form_reports_its_medicines_and_recreating_sets_it_again() {
     assert_eq!(medicines::get(&tx, id, today()).unwrap().form, "Tablet");
 }
 
+mod history_stock;
 mod intakes_more;
 mod lists_more;
 mod logs_more;

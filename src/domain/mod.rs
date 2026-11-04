@@ -4,5 +4,6 @@ pub mod date;
 pub mod limits;
 pub mod medicine;
 pub mod plan;
+pub mod quantity;
 pub mod schedule;
 pub mod units;

@@ -155,6 +155,56 @@ CREATE UNIQUE INDEX intakes_by_uid ON intakes (uid);
 "
 );
 
+/// Two exactness fixes in one rebuild.
+///
+/// Stock and doses become integer hundredths (`f64` drifts: `1 - 0.1 - 0.1 -
+/// 0.1` is `0.7000000000000001`); existing values are converted with
+/// `ROUND(x * 100)`. The old REAL `stock` and `low_stock_at` columns go.
+///
+/// Logged doses outlive their medicine: an intake keeps a snapshot of the
+/// medicine's name (`medicine_name`, backfilled here, kept in step by the
+/// store) and `medicine_id` becomes nullable with `ON DELETE SET NULL`, so
+/// purging a deleted medicine no longer cascades into the history. SQLite
+/// cannot alter a foreign key in place, so `intakes` is rebuilt (create, copy,
+/// drop, rename) and its indexes are made again; `uid`, `idempotency_key`,
+/// `rev` and `deducted` carry over.
+const V9: &str = "
+ALTER TABLE medicines ADD COLUMN stock_hundredths INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE medicines ADD COLUMN low_stock_at_hundredths INTEGER;
+UPDATE medicines SET
+    stock_hundredths = CAST(ROUND(stock * 100) AS INTEGER),
+    low_stock_at_hundredths = CASE WHEN low_stock_at IS NULL THEN NULL
+                                   ELSE CAST(ROUND(low_stock_at * 100) AS INTEGER) END;
+ALTER TABLE medicines DROP COLUMN stock;
+ALTER TABLE medicines DROP COLUMN low_stock_at;
+
+CREATE TABLE intakes_new (
+    id                  INTEGER PRIMARY KEY,
+    medicine_id         INTEGER REFERENCES medicines(id) ON DELETE SET NULL,
+    medicine_name       TEXT,
+    taken_at            TEXT NOT NULL,
+    planned_for         TEXT,
+    status              TEXT NOT NULL CHECK (status IN ('taken','skipped')),
+    dose_hundredths     INTEGER NOT NULL DEFAULT 100,
+    note                TEXT NOT NULL DEFAULT '',
+    deducted_hundredths INTEGER,
+    rev                 INTEGER NOT NULL DEFAULT 1,
+    uid                 TEXT,
+    idempotency_key     TEXT
+);
+INSERT INTO intakes_new (id, medicine_id, medicine_name, taken_at, planned_for, status,
+                         dose_hundredths, note, deducted_hundredths, rev, uid, idempotency_key)
+    SELECT i.id, i.medicine_id, (SELECT m.name FROM medicines m WHERE m.id = i.medicine_id),
+           i.taken_at, i.planned_for, i.status, CAST(ROUND(i.dose * 100) AS INTEGER), i.note,
+           CASE WHEN i.deducted IS NULL THEN NULL ELSE CAST(ROUND(i.deducted * 100) AS INTEGER) END,
+           i.rev, i.uid, i.idempotency_key
+    FROM intakes i;
+DROP TABLE intakes;
+ALTER TABLE intakes_new RENAME TO intakes;
+CREATE INDEX intakes_by_medicine ON intakes (medicine_id, taken_at);
+CREATE UNIQUE INDEX intakes_by_uid ON intakes (uid);
+";
+
 pub fn migrations() -> Vec<Migration> {
     vec![
         Migration::sql(V1),
@@ -165,10 +215,11 @@ pub fn migrations() -> Vec<Migration> {
         Migration::sql(V6),
         Migration::sql(V7),
         Migration::sql(V8),
+        Migration::sql(V9),
     ]
 }
 
 /// Every migration's SQL, in order, for tests that run the stores against an
 /// in-memory database.
 #[cfg(test)]
-pub const ALL_SQL: [&str; 8] = [V1, V2, V3, V4, V5, V6, V7, V8];
+pub const ALL_SQL: [&str; 9] = [V1, V2, V3, V4, V5, V6, V7, V8, V9];

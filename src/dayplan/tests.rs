@@ -13,7 +13,7 @@ fn intake(id: i64, medicine_id: i64, planned: Option<&str>, status: &str) -> Int
         id,
         uid: format!("uid-{id}"),
         rev: 1,
-        medicine_id,
+        medicine_id: Some(medicine_id),
         medicine_name: String::new(),
         taken_at: "2026-10-26T08:05".into(),
         planned_for: planned.map(String::from),

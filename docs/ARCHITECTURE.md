@@ -104,9 +104,9 @@ agenda_sent   (no relations; keyed by the calendar external id)
 
 | Table | Columns that matter | Notes |
 |---|---|---|
-| `medicines` | `name`, `purpose`, `form_id`, `strength`, `notes`, `active`, `as_needed`, `min_gap_minutes`, `max_per_day`, `stock` (real), `stock_unit`, `low_stock_at`, `expires_on`, `opened_on`, `shelf_life_days`, `course_ends_on`, `created_at`, `deleted_at` | `deleted_at` (V6) is the soft delete. The text column `form` from V1 is still there and no longer read (V3 copied its values into `medicine_forms`). Dates are `YYYY-MM-DD` text. |
+| `medicines` | `name`, `purpose`, `form_id`, `strength`, `notes`, `active`, `as_needed`, `min_gap_minutes`, `max_per_day`, `stock_hundredths` (integer), `stock_unit`, `low_stock_at_hundredths` (V9; the API shows decimals), `expires_on`, `opened_on`, `shelf_life_days`, `course_ends_on`, `created_at`, `deleted_at` | `deleted_at` (V6) is the soft delete. The text column `form` from V1 is still there and no longer read (V3 copied its values into `medicine_forms`). Dates are `YYYY-MM-DD` text. |
 | `schedule_slots` | `medicine_id`, `time_of_day` `HH:MM`, `days` (bitmask, default 127), `dose` (real, default 1) | Rewritten as a set on every save of a medicine. Cascade on medicine delete. |
-| `intakes` | `medicine_id`, `taken_at`, `planned_for`, `status` (`taken` or `skipped`, a CHECK), `dose`, `note` | Index `(medicine_id, taken_at)`. No uniqueness: two intakes may answer one slot. |
+| `intakes` | `medicine_id` (nullable, ON DELETE SET NULL), `medicine_name` (snapshot), `taken_at`, `planned_for`, `status` (`taken` or `skipped`, a CHECK), `dose_hundredths`, `deducted_hundredths`, `note`, `rev`, `uid`, `idempotency_key` | V9 rebuilt the table. Purging a medicine keeps its doses as history (id NULL, stored name). Stock and doses are integer hundredths, converted at the edge in `domain/quantity.rs`. Index `(medicine_id, taken_at)`, unique `uid`. No uniqueness on slots: two intakes may answer one slot. |
 | `symptoms` | `name` (UNIQUE), `category_id` (ON DELETE SET NULL) | V2 made them first-class: they survive losing their last medicine. Names are lowercased by the code. |
 | `medicine_symptoms` | `(medicine_id, symptom_id)` primary key | Both sides cascade. |
 | `symptom_categories` | `name` (UNIQUE, NOCASE) | |
