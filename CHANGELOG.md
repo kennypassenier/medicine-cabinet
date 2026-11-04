@@ -6,6 +6,20 @@ carries a **Migration** section saying what an operator must do.
 
 ## [Unreleased]
 
+### Changed
+- Built on chassis-rs 4.8.0 and kp-themes 12.7.0. The app's own workarounds are
+  gone: toolbar chips wrap by the package's default, the inline add rows are the
+  package's `.kp-addrow--line` (empty-field messages now use the package's
+  wording), the row editor names its fields per row ("Time of dose 2"), and
+  whether the local database is persistent comes from the kit
+  (`chassisData.db.persistent`).
+- Alt+Z moves the focus to the undo toast's button (package default); Enter then
+  undoes. Documented in docs/ARCHITECTURE.md.
+
+### Fixed
+- The release build no longer warns about the seed-only `medicines::insert`
+  (it is compiled for debug builds and tests only).
+
 ## [2.0.0] - 2026-11-04
 
 ### Added
