@@ -51,6 +51,18 @@ carries a **Migration** section saying what an operator must do.
 - Offline stock follows queued edits and deletes of logged doses; offline
   counts follow links made offline.
 
+### Migration
+- Nothing to do for the operator: the database migrates at start (versions 8 to
+  11: `rev`/`uid` columns and the sync change log, exact stock, kept history,
+  `desc_rev`), existing data stays.
+- The ids of medicines, symptoms, categories and forms in the API and the sync
+  feed change from integers to uid strings. Anything outside the app that
+  stored or sent the old integers must switch to the `id` values the API now
+  returns (there is no known such client). A device with edits queued under an
+  old integer id gets them refused (400) and sees them in the kit's
+  failed-edits list; open the app online once so it syncs again.
+- Build and run on chassis-rs 4.7.0 (kp-themes 12.6.0); nothing to configure.
+
 ### Known limits
 - The undo of a deleted category or form is a new create.
 - The queue retries every 30 seconds after a lost connection.
