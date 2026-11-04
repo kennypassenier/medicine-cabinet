@@ -244,7 +244,7 @@ step, no `package.json` and no frontend test suite in this repository.
 
 Rules the front end keeps: the server is the source of truth and nothing is
 kept in browser storage; every reversible action runs at once and offers Undo
-instead of asking first; a failed call is shown to the person (`reportError` toast, or the error state
+instead of asking first (Ctrl+Z undoes it, and Alt+Z, kp-themes' `data-kp-undo-focus-key`, moves the focus to the newest Undo toast's button, where Enter undoes; verified on Today and Settings); a failed call is shown to the person (`reportError` toast, or the error state
 of the card) with the server's message and remedy; the only quiet fallbacks
 are in `api.js` (a body that is not JSON is shown as text) and `shell.js` (if
 the kit's page list cannot be read, the More menu shows only Settings, with a

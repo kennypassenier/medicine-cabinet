@@ -54,6 +54,8 @@ async function openDatabase(kit) {
   await kit.configure({ name: "medicine-cabinet", db: { overlay: { medicines: shapeMedicine } }, describe });
   // The cabinet is a few kilobytes: keep all of it on the device.
   if (!(await kit.settings()).all) await kit.keepAll(true);
+  const problem = await localDatabaseProblem(kit);
+  if (problem) return problem;
   const opened = kit.db.ready().then(() => null, (/** @type {any} */ e) => e);
   const deadline = new Promise((done) => setTimeout(done, FIRST_SYNC_MS));
   const failure = await Promise.race([opened, deadline.then(() => null)]);
@@ -67,8 +69,7 @@ async function openDatabase(kit) {
 /** Configure the kit and wait (briefly) for the first sync. Never rejects: offline the app draws from the stored copy; with the database blocked it works online only. */
 export async function startLocal() {
   const kit = /** @type {any} */ (window).chassisData;
-  const problem = await localDatabaseProblem({ kit, indexedDB: window.indexedDB });
-  if (problem) return goOnline(problem);
+  if (!kit) return goOnline("the offline data client is not loaded");
   redrawOnRefusal();
   try {
     const failed = await openDatabase(kit);
