@@ -5,6 +5,7 @@
 
 import { ApiError } from "../api-error.js";
 import { BASE, col, createOnline, guard, nocase, numeric, send } from "./kit.js";
+import { withFormCounts, withMedicineCounts, withSymptomCounts } from "./counts.js";
 import { localMedicines } from "./medicines.js";
 
 /** @param {string} name */
@@ -16,11 +17,14 @@ async function sorted(name) {
   return rows.sort((a, b) => nocase(a.name, b.name));
 }
 
-/** Symptoms, each with the category's current name. */
+/** The stored medicines (queue laid over them), for counting. */
+const medicineRows = async () => col("medicines").all();
+
+/** Symptoms, each with the category's current name and a locally counted medicine total. */
 async function symptoms() {
-  const [rows, cats] = await Promise.all([sorted("symptoms"), sorted("categories")]);
+  const [rows, cats, meds] = await Promise.all([sorted("symptoms"), sorted("categories"), medicineRows()]);
   const names = new Map(cats.map((c) => [c.id, c.name]));
-  return rows.map((s) => ({ ...s, category: s.category_id == null ? null : (names.get(s.category_id) ?? s.category ?? null) }));
+  return withMedicineCounts(rows, meds).map((s) => ({ ...s, category: s.category_id == null ? null : (names.get(s.category_id) ?? s.category ?? null) }));
 }
 
 /** The stored item to edit, or the server's own "does not exist". @param {string} name @param {number} id @param {string} what */
@@ -70,11 +74,11 @@ export const listStore = {
   addSymptom: (/** @type {object} */ b) => guard(() => createOnline("A symptom", route("symptoms"), b)),
   editSymptom: (/** @type {number} */ id, /** @type {object} */ b) => guard(() => edit("symptoms", "symptom", id, b)),
   removeSymptom: (/** @type {number} */ id) => guard(() => removeSymptom(id)),
-  categories: () => guard(() => sorted("categories")),
+  categories: () => guard(async () => withSymptomCounts(await sorted("categories"), await sorted("symptoms"))),
   addCategory: (/** @type {string} */ name, /** @type {number[]} */ symptomIds = []) => guard(() => createOnline("A category", route("categories"), { name, symptom_ids: symptomIds })),
   editCategory: (/** @type {number} */ id, /** @type {string} */ name) => guard(() => edit("categories", "category", id, { name })),
   removeCategory: (/** @type {number} */ id) => guard(() => removeCategory(id)),
-  forms: () => guard(() => sorted("forms")),
+  forms: () => guard(async () => withFormCounts(await sorted("forms"), await medicineRows())),
   addForm: (/** @type {object} */ b) => guard(() => createOnline("A form", route("forms"), b)),
   editForm: (/** @type {number} */ id, /** @type {object} */ b) => guard(() => edit("forms", "form", id, b)),
   removeForm: (/** @type {number} */ id) => guard(() => removeForm(id)),
