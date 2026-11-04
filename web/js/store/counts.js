@@ -18,12 +18,12 @@ export function withMedicineCounts(symptoms, medicines) {
 
 /** Each form with how many medicines use it. @param {any[]} forms @param {any[]} medicines */
 export function withFormCounts(forms, medicines) {
-  const by = tally(medicines.filter((m) => m.form_id != null).map((m) => Number(m.form_id)));
-  return forms.map((f) => ({ ...f, medicines: by.get(Number(f.id)) ?? 0 }));
+  const by = tally(medicines.filter((m) => m.form_id != null).map((m) => m.form_id));
+  return forms.map((f) => ({ ...f, medicines: by.get(f.id) ?? 0 }));
 }
 
 /** Each category with how many symptoms belong to it. @param {any[]} categories @param {any[]} symptoms */
 export function withSymptomCounts(categories, symptoms) {
-  const by = tally(symptoms.filter((s) => s.category_id != null).map((s) => Number(s.category_id)));
-  return categories.map((c) => ({ ...c, symptoms: by.get(Number(c.id)) ?? 0 }));
+  const by = tally(symptoms.filter((s) => s.category_id != null).map((s) => s.category_id));
+  return categories.map((c) => ({ ...c, symptoms: by.get(c.id) ?? 0 }));
 }

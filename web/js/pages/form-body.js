@@ -27,7 +27,7 @@ const orNull = (el) => {
  * @param {HTMLFormElement} form
  * @param {ReturnType<typeof blankModel>} model
  * @param {HTMLElement} tags the symptom combobox
- * @param {number | null} formId the chosen form pill
+ * @param {string | null} formId the chosen form pill
  */
 export function readBody(form, model, tags, formId) {
   const q = (/** @type {string} */ label) => /** @type {HTMLElement | null} */ (form.querySelector(`[data-kp-quantity-label="${label}"]`));

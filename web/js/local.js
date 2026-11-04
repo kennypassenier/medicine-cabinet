@@ -2,6 +2,8 @@
 // never waits on the network longer than a moment. Offline, the screens draw
 // from the last sync and the kit shows its connection band and failed-edits list.
 
+import { shapeMedicine } from "./store/medicine-shape.js";
+
 const FIRST_SYNC_MS = 2500;
 
 /** Names a queued write in the kit's failed-edits list. @param {{ method: string, path: string, body?: any }} entry */
@@ -14,8 +16,9 @@ function describe({ method, path, body }) {
   if (p.endsWith("/active")) return { title: body?.active ? "Switch a medicine on" : "Switch a medicine off" };
   if (p.endsWith("/restore")) return { title: "Restore a medicine" };
   const [kind] = p.split("/");
+  const verb = method === "POST" ? "Add" : method === "DELETE" ? "Delete" : "Change";
   const noun = { medicines: "medicine", symptoms: "symptom", categories: "category", forms: "form" }[kind] ?? "item";
-  return { title: `${method === "DELETE" ? "Delete" : "Change"} ${noun}${named ? ` ${named}` : ""}` };
+  return { title: `${verb} ${noun}${named ? ` ${named}` : ""}` };
 }
 
 /** Configure the kit and wait (briefly) for the first sync. Never rejects: offline the app draws from the stored copy. */
@@ -23,7 +26,7 @@ export async function startLocal() {
   const kit = /** @type {any} */ (window).chassisData;
   if (!kit) return console.error("The offline data client is not loaded; the pages cannot read their data.");
   try {
-    await kit.configure({ name: "medicine-cabinet", db: true, describe });
+    await kit.configure({ name: "medicine-cabinet", db: { overlay: { medicines: shapeMedicine } }, describe });
     // The cabinet is a few kilobytes: keep all of it on the device.
     if (!(await kit.settings()).all) await kit.keepAll(true);
     const first = kit.db.ready().then(() => kit.db.sync());

@@ -57,19 +57,19 @@ export async function send(method, path, body, rev) {
 }
 
 /**
- * A create that needs the server (it hands out the id). Without a connection it
- * is refused, not queued: nothing local could show it until it was made.
- * @param {string} what "A medicine" @param {string} path @param {object} body
+ * Create an item of a collection under a uid made here, so it is usable (and
+ * linkable) before the server has seen it. Sent at once when the queue is empty
+ * and the server answers, queued otherwise; the local database shows it either
+ * way (the queued POST is laid over the stored records). The server replays it
+ * with the kit's Idempotency-Key; a refusal then lands in the failed-edits list.
+ * @param {string} name the collection @param {Record<string, unknown>} item the POST body, without `id`
+ * @returns {Promise<{ id: string }>}
  */
-export async function createOnline(what, path, body) {
-  const refused = new ApiError(`${what} can only be added with a connection.`, "Connect and try again.", 0);
-  if (!navigator.onLine) throw refused;
-  const result = await send("POST", path, body);
-  if (!result.queued) return result.data;
-  const mine = JSON.stringify(body);
-  const entry = (await kit().queue()).findLast((/** @type {any} */ e) => e.method === "POST" && e.path === path && JSON.stringify(e.body) === mine);
-  if (entry) await kit().drop(entry.id);
-  throw refused;
+export async function createLocal(name, item) {
+  const id = crypto.randomUUID();
+  const result = await col(name).create({ ...item, id });
+  if (!result.queued) await refresh();
+  return { id };
 }
 
 /** Queued, not failed, edits (oldest first). */
@@ -90,6 +90,3 @@ export function nocase(a, b) {
   const y = b.replace(/[A-Z]/g, (c) => c.toLowerCase());
   return x < y ? -1 : x > y ? 1 : 0;
 }
-
-/** Numeric ids: the kit's keys are text. @param {any} row */
-export const numeric = (row) => ({ ...row, id: Number(row.id) });

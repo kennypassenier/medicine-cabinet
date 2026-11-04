@@ -21,7 +21,7 @@ const SHOWN = 3;
 /**
  * @param {HTMLElement} band the element made by attentionBand()
  * @param {any[]} items the API's attention list
- * @param {Map<number, any>} meds
+ * @param {Map<string, any>} meds
  * @param {() => void} reload
  */
 export function renderAttention(band, items, meds, reload) {

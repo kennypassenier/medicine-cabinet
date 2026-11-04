@@ -16,7 +16,7 @@ function courseEnd(text) {
 
 /**
  * @param {any[]} medicines medicines with derived fields (see judge) @param {import("./date.js").CalDate} today
- * @returns {{ medicine_id: number, medicine_name: string, kind: string, detail: string }[]}
+ * @returns {{ medicine_id: string, medicine_name: string, kind: string, detail: string }[]}
  */
 export function attentionFor(medicines, today) {
   const out = [];

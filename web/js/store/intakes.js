@@ -19,9 +19,9 @@ export async function localIntakes() {
   return (await col("intakes").all()).map(named);
 }
 
-/** @param {number} id the medicine id */
+/** @param {string} id the medicine uid */
 async function medicineName(id) {
-  const m = await col("medicines").get(String(id));
+  const m = await col("medicines").get(id);
   if (!m) throw new ApiError(`medicine ${id} does not exist`, "reload the list; it may have been deleted", 404);
   return m.name;
 }
@@ -32,7 +32,7 @@ async function list(day, limit) {
   return listIntakes(rows, medicines, day, limit);
 }
 
-/** @param {{ medicineId: number, status: "taken" | "skipped", plannedFor?: string | null, dose?: number, note?: string, takenAt?: string }} i */
+/** @param {{ medicineId: string, status: "taken" | "skipped", plannedFor?: string | null, dose?: number, note?: string, takenAt?: string }} i */
 async function log(i) {
   const uid = crypto.randomUUID();
   const body = {

@@ -29,7 +29,7 @@ export function route(path, search) {
   const place = [...AREAS, ...MORE].find((a) => a.path === path);
   if (place) return { load: place.load, params, bar: place.path };
   if (path === "/medicine/new") return { load: FORM, params, bar: "/cabinet" };
-  const m = path.match(/^\/medicine\/(\d+)$/);
+  const m = path.match(/^\/medicine\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i);
   if (m) {
     params.set("id", m[1]);
     return { load: FORM, params, bar: "/cabinet" };

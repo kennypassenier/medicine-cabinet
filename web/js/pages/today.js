@@ -15,7 +15,7 @@ import { renderAsNeeded } from "./today-asneeded.js";
 /**
  * Everything the page's functions share.
  * @typedef {{
- *   model: { today: any, meds: Map<number, any> } | null, loadedOnce: boolean, alive: boolean, busy: boolean,
+ *   model: { today: any, meds: Map<string, any> } | null, loadedOnce: boolean, alive: boolean, busy: boolean,
  *   ui: ReturnType<typeof buildLayout>
  * }} TodayPage
  */

@@ -43,7 +43,7 @@ async function saveEdit(i, next, unit, after) {
 }
 
 /**
- * @param {any} i the intake @param {Map<number, any>} meds
+ * @param {any} i the intake @param {Map<string, any>} meds
  * @param {{ remove: (i: any) => void, changed: () => void }} on `changed` runs after a saved edit or its Undo (reload)
  */
 export function historyRow(i, meds, on) {

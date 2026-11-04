@@ -7,7 +7,7 @@
 import { waiting } from "./kit.js";
 import { layQueue } from "./stock-effects.js";
 
-/** The medicines with the waiting writes laid over them. @param {any[]} medicines numeric ids */
+/** The medicines with the waiting writes laid over them. @param {any[]} medicines uid ids */
 export async function withQueue(medicines) {
   return layQueue(medicines, await waiting());
 }

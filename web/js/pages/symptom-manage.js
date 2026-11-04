@@ -79,7 +79,7 @@ function drawCategories(m) {
 function symptomRow(m, s) {
   const { categories } = m.data;
   const options = /** @type {[string, string][]} */ ([["", UNCATEGORISED], ...categories.map((c) => [String(c.id), c.name])]);
-  const save = async (/** @type {Partial<{ name: string, category_id: number | null }>} */ patch) => {
+  const save = async (/** @type {Partial<{ name: string, category_id: string | null }>} */ patch) => {
     await api.editSymptom(s.id, { name: s.name, category_id: s.category_id, ...patch });
     Object.assign(s, patch);
     s.category = categories.find((c) => c.id === s.category_id)?.name ?? null;
@@ -87,7 +87,7 @@ function symptomRow(m, s) {
     m.detach.push(drawCategories(m));
   };
   const name = inlineField({ kind: "text", label: `Name of the symptom ${s.name}`, value: s.name, required: true, key: `sym-name-${s.id}`, onCommit: async (v) => { await save({ name: v }); name.input.closest("td")?.setAttribute("data-kp-sort-value", v); name.input.setAttribute("aria-label", `Name of the symptom ${v}`); cat.input.setAttribute("aria-label", `Category of ${v}`); relabelMenu(menu, `Actions for the symptom ${v}`); } });
-  const cat = inlineField({ kind: "select", label: `Category of ${s.name}`, value: s.category_id === null ? "" : String(s.category_id), options, key: `sym-cat-${s.id}`, onCommit: async (v) => { await save({ category_id: v ? Number(v) : null }); cat.input.closest("td")?.setAttribute("data-kp-sort-value", s.category ?? ""); } });
+  const cat = inlineField({ kind: "select", label: `Category of ${s.name}`, value: s.category_id === null ? "" : String(s.category_id), options, key: `sym-cat-${s.id}`, onCommit: async (v) => { await save({ category_id: v || null }); cat.input.closest("td")?.setAttribute("data-kp-sort-value", s.category ?? ""); } });
   const menu = rowMenu(`Actions for the symptom ${s.name}`, [{ label: "Delete", value: "delete", danger: true, run: () => void removeSymptom(m, s) }]);
   return { key: `s${s.id}`, cells: [name.el, cat.el, s.medicines, menu], sortValues: [s.name, s.category ?? "", s.medicines, undefined] };
 }
@@ -98,7 +98,7 @@ function drawAddSymptom(m) {
   const { el, focus } = addRow({
     label: "Add a symptom", hint: "Name what you take medicine for and where it is listed.", accept: "Add symptom",
     fields: [{ name: "name", label: "Name of the new symptom", placeholder: "e.g. headache", required: true }, { name: "category", label: "Category of the new symptom", kind: "select", options }],
-    onAdd: async (v) => { await api.addSymptom({ name: v.name, category_id: v.category ? Number(v.category) : null }); await m.reload(); },
+    onAdd: async (v) => { await api.addSymptom({ name: v.name, category_id: v.category || null }); await m.reload(); },
   });
   m.addSym = { focus };
   m.addSymHost.replaceChildren(el);

@@ -21,7 +21,7 @@ import { aboutSection, dangerSection, datesSection, helpsSection, stockSection, 
 /**
  * What the page's functions share.
  * @typedef {{
- *   root: HTMLElement, id: number | null, navigate: (href: string) => void, alive: boolean,
+ *   root: HTMLElement, id: string | null, navigate: (href: string) => void, alive: boolean,
  *   holder: ReturnType<typeof dataCard>, pills: ReturnType<typeof formPills> | null,
  *   when: ReturnType<typeof createWhen> | null, bar: HTMLElement | null, detach: (() => void)[], deleting: boolean, saving: boolean
  * }} MedicinePage
@@ -102,9 +102,10 @@ async function save(p, form, model, tags, med) {
   try {
     if (!model.asNeeded && p.when) model.slots = p.when.read();
     const body = readBody(form, model, tags, p.pills?.value() ?? null);
-    const saved = med ? await api.update(med.id, body) : await api.create(body);
+    if (med) await api.update(med.id, body);
+    else await api.create(body);
     if (p.bar) markUnsavedClean(p.bar);
-    say(`${saved.name} ${med ? "saved" : "added to the cabinet"}.`);
+    say(`${body.name} ${med ? "saved" : "added to the cabinet"}.`);
     p.navigate("/cabinet");
   } catch (e) {
     p.saving = false;
@@ -130,7 +131,7 @@ async function remove(p, med) {
 
 /** @param {HTMLElement} root @param {{ params: URLSearchParams, navigate: (h: string) => void }} ctx */
 export function mount(root, { params, navigate }) {
-  const id = params.get("id") ? Number(params.get("id")) : null;
+  const id = params.get("id") || null;
   document.title = `${id ? "Edit" : "Add"} medicine · Medicine cabinet`;
   /** @type {MedicinePage} */
   const p = {

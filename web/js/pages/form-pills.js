@@ -10,13 +10,13 @@ import { mirror } from "./form-mirror.js";
 import { row } from "./form-fields.js";
 
 /**
- * @param {{ forms: any[], formId: number | null, onPick: (form: any | null) => void }} o
- * @returns {{ row: HTMLElement, value: () => number | null }}
+ * @param {{ forms: any[], formId: string | null, onPick: (form: any | null) => void }} o
+ * @returns {{ row: HTMLElement, value: () => string | null }}
  */
 export function formPills({ forms, formId, onPick }) {
   let chosen = formId;
   const slot = h("div");
-  const bar = mirror({ kind: "form", read: () => (chosen === null ? "" : String(chosen)), write: (v) => { chosen = v ? Number(v) : null; draw(); } });
+  const bar = mirror({ kind: "form", read: () => (chosen === null ? "" : String(chosen)), write: (v) => { chosen = v || null; draw(); } });
 
   function draw() {
     if (chosen !== null && !forms.some((f) => f.id === chosen)) chosen = null;
@@ -26,7 +26,7 @@ export function formPills({ forms, formId, onPick }) {
       none: true,
       options: forms.map((f) => /** @type {[string, string]} */ ([String(f.id), f.name])),
       onChange: (v) => {
-        chosen = v ? Number(v) : null;
+        chosen = v || null;
         onPick(forms.find((f) => f.id === chosen) ?? null);
         bar.sync();
       },

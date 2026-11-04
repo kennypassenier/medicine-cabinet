@@ -28,7 +28,7 @@ export function stateBadge(d) {
 }
 
 const doseKey = (/** @type {any} */ d) => `${d.medicine_id}-${d.time}`;
-const unitOf = (/** @type {Map<number, any>} */ meds, /** @type {any} */ d) => meds.get(d.medicine_id)?.stock_unit ?? "";
+const unitOf = (/** @type {Map<string, any>} */ meds, /** @type {any} */ d) => meds.get(d.medicine_id)?.stock_unit ?? "";
 
 /** The buttons of one dose row, in the list's shared columns (Skip, then the primary last). @param {any} d @param {DoseHandlers} on */
 function actions(d, on) {
@@ -42,7 +42,7 @@ function actions(d, on) {
     button(early ? "Take early" : "Take", { look: early ? "" : "kp-button--primary", role: "take", key: `take-${k}`, onClick: () => on.take(d), label: `${early ? "Take early" : "Take"} ${d.medicine_name} at ${d.time}` }));
 }
 
-/** @param {any} d @param {Map<number, any>} meds @param {DoseHandlers} on */
+/** @param {any} d @param {Map<string, any>} meds @param {DoseHandlers} on */
 function row(d, meds, on) {
   const med = meds.get(d.medicine_id);
   return h("li", { "data-state": d.state },
@@ -52,13 +52,13 @@ function row(d, meds, on) {
     actions(d, on));
 }
 
-/** The day's doses, earliest first, in one list whose buttons share columns. @param {HTMLElement} into @param {any[]} doses @param {Map<number, any>} meds @param {DoseHandlers} on */
+/** The day's doses, earliest first, in one list whose buttons share columns. @param {HTMLElement} into @param {any[]} doses @param {Map<string, any>} meds @param {DoseHandlers} on */
 export function renderSchedule(into, doses, meds, on) {
   const sorted = [...doses].sort((a, b) => a.time.localeCompare(b.time));
   into.replaceChildren(h("ul", { class: "kp-action-list", "aria-label": "Doses planned today" }, ...sorted.map((d) => row(d, meds, on))));
 }
 
-/** The hero card body: what to take next, with the same two actions. @param {HTMLElement} into @param {any[]} doses @param {Map<number, any>} meds @param {DoseHandlers} on */
+/** The hero card body: what to take next, with the same two actions. @param {HTMLElement} into @param {any[]} doses @param {Map<string, any>} meds @param {DoseHandlers} on */
 export function renderNext(into, doses, meds, on) {
   const d = nextDose(doses);
   if (!d) {

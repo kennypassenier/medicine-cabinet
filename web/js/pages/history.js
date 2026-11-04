@@ -19,7 +19,7 @@ const FILTERS = { all: "All", taken: "Taken", skipped: "Skipped" };
 /**
  * Everything the page's functions share.
  * @typedef {{
- *   items: any[], meds: Map<number, any>, limit: number, filter: keyof typeof FILTERS, detach: (() => void)[], rows: () => void,
+ *   items: any[], meds: Map<string, any>, limit: number, filter: keyof typeof FILTERS, detach: (() => void)[], rows: () => void,
  *   loaded: boolean, alive: boolean, addSlot: HTMLElement, ui: ReturnType<typeof buildLayout>
  * }} HistoryPage
  */
@@ -38,7 +38,7 @@ function buildLayout(root, on) {
   return { filterSlot, card, more, addSlot };
 }
 
-/** One day of the log: its heading and entries, in the list's shared columns. @param {string} day @param {any[]} list @param {Map<number, any>} meds @param {Parameters<typeof historyRow>[2]} on */
+/** One day of the log: its heading and entries, in the list's shared columns. @param {string} day @param {any[]} list @param {Map<string, any>} meds @param {Parameters<typeof historyRow>[2]} on */
 function daySection(day, list, meds, on) {
   return h("section", { class: "kp-stack kp-gap-sm", "aria-label": friendlyDate(day) },
     h("h3", { class: "kp-m-0" }, friendlyDate(day), " ", h("span", { class: "kp-text-muted" }, `· ${list.length} ${list.length === 1 ? "entry" : "entries"}`)),

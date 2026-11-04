@@ -10,7 +10,7 @@ export const DUE_WINDOW_MINUTES = 60;
 /**
  * One scheduled dose of one medicine on one day.
  * @typedef {{
- *   medicine_id: number, medicine_name: string, minute: number, time: string, dose: number, unit: string,
+ *   medicine_id: string, medicine_name: string, minute: number, time: string, dose: number, unit: string,
  *   answered: { id: any, status: string } | null
  * }} PlanSlot
  */

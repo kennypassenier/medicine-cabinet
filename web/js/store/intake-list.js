@@ -7,8 +7,8 @@
  * @param {string | undefined} day prefix @param {number} limit
  */
 export function listIntakes(rows, medicines, day, limit) {
-  const names = new Map(medicines.map((m) => [Number(m.id), m.name]));
-  const own = (/** @type {any} */ i) => (i.medicine_id == null ? undefined : names.get(Number(i.medicine_id)));
+  const names = new Map(medicines.map((m) => [m.id, m.name]));
+  const own = (/** @type {any} */ i) => (i.medicine_id == null ? undefined : names.get(i.medicine_id));
   return rows
     .filter((i) => !day || i.taken_at.startsWith(day))
     .map((i) => ({ ...i, medicine_name: own(i) ?? i.medicine_name ?? "" }))

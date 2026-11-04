@@ -41,8 +41,8 @@ export function checkDose(minutesAgo, minGapMinutes, maxPerDay) {
  * Minutes before `now` of the taken doses of one medicine (the 50 most
  * recent by time); rows with an unreadable time and doses in the future are
  * skipped, as on the server.
- * @param {{ medicine_id: number, status: string, taken_at: string }[]} intakes
- * @param {number} medicineId @param {string} now "YYYY-MM-DDTHH:MM"
+ * @param {{ medicine_id: string, status: string, taken_at: string }[]} intakes
+ * @param {string} medicineId @param {string} now "YYYY-MM-DDTHH:MM"
  */
 export function minutesAgo(intakes, medicineId, now) {
   const nowDays = toDays(parseDate(now));
@@ -65,8 +65,8 @@ export function minutesAgo(intakes, medicineId, now) {
 /**
  * May an as-needed medicine be taken right now? Same answer as
  * GET /api/mc/medicines/:id/dose-check.
- * @param {{ id: number, min_gap_minutes?: number | null, max_per_day?: number | null }} medicine
- * @param {{ medicine_id: number, status: string, taken_at: string }[]} intakes
+ * @param {{ id: string, min_gap_minutes?: number | null, max_per_day?: number | null }} medicine
+ * @param {{ medicine_id: string, status: string, taken_at: string }[]} intakes
  * @param {string} now "YYYY-MM-DDTHH:MM"
  * @returns {DoseVerdict}
  */

@@ -12,7 +12,7 @@ const STOCK_DEBOUNCE_MS = 700;
  *   saved change, `idle` true when no other medicine is still waiting to save
  */
 export function createStockEditor({ reload, onSaved }) {
-  /** @type {Map<number, { timer: number, base: number, value: number }>} */
+  /** @type {Map<string, { timer: number, base: number, value: number }>} */
   const pending = new Map();
 
   /** @param {any} m @param {{ base: number, value: number }} p */
