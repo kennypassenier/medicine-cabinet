@@ -8,6 +8,7 @@ import { doseCheck, judge, overview, parseDate, serverOrder } from "../plan/inde
 import { BASE, col, createLocal, dropWaiting, guard, send, waiting } from "./kit.js";
 import { localIntakes } from "./intakes.js";
 import { withQueue } from "./pending.js";
+import { ensureSymptoms } from "./symptom-ensure.js";
 
 const missing = (/** @type {string} */ id) => new ApiError(`medicine ${id} does not exist`, "reload the list; it may have been deleted", 404);
 const item = (/** @type {string} */ id) => `${BASE}/medicines/${id}`;
@@ -51,10 +52,15 @@ export const medicineStore = {
   today: () => guard(async () => overview(await localMedicines(), await localIntakes(), nowParam())),
   search: (/** @type {string} */ symptom) => guard(() => search(symptom)),
   doseCheck: (/** @type {string} */ id) => guard(async () => doseCheck(await find(id), await localIntakes(), nowParam())),
-  create: (/** @type {object} */ body) => guard(() => createLocal("medicines", body)),
+  create: (/** @type {object} */ body) =>
+    guard(async () => {
+      await ensureSymptoms(/** @type {any} */ (body).symptoms);
+      return createLocal("medicines", body);
+    }),
   update: (/** @type {string} */ id, /** @type {object} */ body) =>
     guard(async () => {
       const { stored, body: next } = await merged(id, body);
+      await ensureSymptoms(next.symptoms);
       await send("PUT", `${item(id)}?now=${nowParam()}`, next, stored.rev);
       return find(id);
     }),

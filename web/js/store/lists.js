@@ -4,9 +4,11 @@
 // puts the item back, worked out here from the local data.
 
 import { ApiError } from "../api-error.js";
-import { BASE, col, createLocal, guard, nocase, send } from "./kit.js";
+import { BASE, col, createLocal, dropWaiting, guard, nocase, send, waiting } from "./kit.js";
 import { withFormCounts, withMedicineCounts, withSymptomCounts } from "./counts.js";
+import { laySymptomCategories } from "./link-effects.js";
 import { localMedicines } from "./medicines.js";
+import { withQueue } from "./pending.js";
 
 /** @param {string} name */
 const route = (name) => `${BASE}/${name}`;
@@ -17,12 +19,17 @@ async function sorted(name) {
   return rows.sort((a, b) => nocase(a.name, b.name));
 }
 
-/** The stored medicines (queue laid over them), for counting. */
-const medicineRows = async () => col("medicines").all();
+/** The stored medicines with the waiting writes (links included) laid over them, for counting. */
+const medicineRows = async () => withQueue(await col("medicines").all());
+
+/** The symptoms with the waiting category writes (a category created with symptom_ids) laid over them. */
+async function filed() {
+  return laySymptomCategories(await sorted("symptoms"), await waiting());
+}
 
 /** Symptoms, each with the category's current name and a locally counted medicine total. */
 async function symptoms() {
-  const [rows, cats, meds] = await Promise.all([sorted("symptoms"), sorted("categories"), medicineRows()]);
+  const [rows, cats, meds] = await Promise.all([filed(), sorted("categories"), medicineRows()]);
   const names = new Map(cats.map((c) => [c.id, c.name]));
   return withMedicineCounts(rows, meds).map((s) => ({ ...s, category: s.category_id == null ? null : (names.get(s.category_id) ?? s.category ?? null) }));
 }
@@ -41,10 +48,10 @@ async function edit(name, what, id, fields) {
   return { id };
 }
 
-/** @param {string} name @param {string} what @param {string} id @param {object} was */
-async function remove(name, what, id, was) {
+/** @param {string} name @param {string} what @param {string} id @param {object} was @param {string} [query] a hint for the waiting-write overlay */
+async function remove(name, what, id, was, query = "") {
   const row = await stored(name, id, what);
-  await send("DELETE", `${route(name)}/${id}`, undefined, row.rev);
+  await send("DELETE", `${route(name)}/${id}${query}`, undefined, row.rev);
   return { deleted: id, was };
 }
 
@@ -52,13 +59,14 @@ async function remove(name, what, id, was) {
 async function removeSymptom(id) {
   const row = await stored("symptoms", id, "symptom");
   const linked = (await localMedicines()).filter((m) => m.symptoms.includes(row.name)).map((m) => m.id);
-  return remove("symptoms", "symptom", id, { category_id: row.category_id ?? null, medicine_ids: linked, name: row.name });
+  const hint = `?${new URLSearchParams({ was_name: row.name })}`;
+  return remove("symptoms", "symptom", id, { category_id: row.category_id ?? null, medicine_ids: linked, name: row.name, was_id: id }, hint);
 }
 
 /** @param {string} id */
 async function removeCategory(id) {
   const row = await stored("categories", id, "category");
-  const members = (await sorted("symptoms")).filter((s) => s.category_id === id).map((s) => s.id);
+  const members = (await filed()).filter((s) => s.category_id === id).map((s) => s.id);
   return remove("categories", "category", id, { name: row.name, symptom_ids: members });
 }
 
@@ -69,12 +77,25 @@ async function removeForm(id) {
   return remove("forms", "form", id, { medicine_ids: users, name: row.name, unit: row.unit });
 }
 
+/**
+ * Put a deleted symptom back. A delete still waiting in the queue is simply
+ * taken back (nothing reached the server, and a create under a new uid would
+ * only meet the symptom's own name); otherwise it is created again.
+ * @param {{ was_id?: string } & Record<string, unknown>} body what `removeSymptom` answered as `was`
+ */
+async function restoreSymptom(body) {
+  const { was_id: id, ...create } = body;
+  const gone = (e) => e.method === "DELETE" && String(e.path).split("?")[0] === `${route("symptoms")}/${id}`;
+  if (id && (await dropWaiting(gone))) return { id };
+  return createLocal("symptoms", { category_id: null, ...create });
+}
+
 export const listStore = {
   symptoms: () => guard(symptoms),
-  addSymptom: (/** @type {object} */ b) => guard(() => createLocal("symptoms", { category_id: null, ...b })),
-  editSymptom: (/** @type {string} */ id, /** @type {object} */ b) => guard(() => edit("symptoms", "symptom", id, b)),
+  addSymptom: (/** @type {any} */ b) => guard(() => restoreSymptom(b)),
+  editSymptom: (/** @type {string} */ id, /** @type {object} */ b) => guard(async () => edit("symptoms", "symptom", id, { ...b, was_name: (await stored("symptoms", id, "symptom")).name })),
   removeSymptom: (/** @type {string} */ id) => guard(() => removeSymptom(id)),
-  categories: () => guard(async () => withSymptomCounts(await sorted("categories"), await sorted("symptoms"))),
+  categories: () => guard(async () => withSymptomCounts(await sorted("categories"), await filed())),
   addCategory: (/** @type {string} */ name, /** @type {string[]} */ symptomIds = []) => guard(() => createLocal("categories", { name, symptom_ids: symptomIds })),
   editCategory: (/** @type {string} */ id, /** @type {string} */ name) => guard(() => edit("categories", "category", id, { name })),
   removeCategory: (/** @type {string} */ id) => guard(() => removeCategory(id)),

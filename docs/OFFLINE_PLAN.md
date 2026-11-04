@@ -75,9 +75,21 @@ every reference is a uid. A create the server refuses on replay (400, duplicate
 name) lands in the kit's failed-edits list. The queue replays on the kit's
 30 s retry timer after the connection returns.
 
+Update (2026-11-04, links): links between a medicine and its symptoms made
+offline show at once on Cabinet, Symptoms (search and counts) and survive a
+reload; they reach the server with the queue. `store/link-effects.js` lays the
+reverse mappings of waiting writes (a symptom created with `medicine_ids`, a
+symptom rename or delete via the `was_name` hint, a category created with
+`symptom_ids`, a form created with `medicine_ids`); a name typed in the medicine
+form that no symptom has yet is created first as a queued symptom
+(`store/symptom-ensure.js`). Undo of a symptom delete that is still queued takes
+the delete back. A refused write makes every screen redraw (`local.js`).
+
 Known limits: offline stock does not account for queued intake edits or deletes
-beyond what stock-effects.js lays over; symptom, category and form counts stay
-stale until the next sync except where counts.js recomputes them; a symptom or
-category created with `medicine_ids` / `symptom_ids` (the undo of a delete) does
-not show its links until the sync. Milestone 4 (hardening) is open: logout-guard
-wording, storage-cap message, a recorded Playwright round trip.
+beyond what stock-effects.js lays over; the reverse links are laid after the
+kit's overlay, so a queued medicine edit that comes after an undo-created symptom
+in the queue does not override it on screen (the server order wins after the
+sync); undo of a deleted category or form is still a new create. There is no
+screen that links medicines from the symptom side (only the undo of a delete).
+Milestone 4 (hardening) is open: logout-guard wording, storage-cap message, a
+recorded Playwright round trip.
