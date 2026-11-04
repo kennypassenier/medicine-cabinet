@@ -6,6 +6,8 @@ carries a **Migration** section saying what an operator must do.
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-11-04
+
 ### Added
 - **Offline use.** The pages read and write through the kit's local database
   (`chassisData`, chassis-rs 4.7.0): Today, Cabinet, Symptoms, History and
