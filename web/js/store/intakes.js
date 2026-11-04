@@ -5,6 +5,7 @@
 
 import { ApiError } from "../api-error.js";
 import { nowParam } from "../clock.js";
+import { listIntakes } from "./intake-list.js";
 import { BASE, col, dropWaiting, guard, send } from "./kit.js";
 
 const LIST = `${BASE}/intakes`;
@@ -28,12 +29,7 @@ async function medicineName(id) {
 /** Newest first, for a day (or month) prefix. @param {string | undefined} day @param {number} limit */
 async function list(day, limit) {
   const [rows, medicines] = await Promise.all([localIntakes(), col("medicines").all()]);
-  const names = new Map(medicines.map((/** @type {any} */ m) => [Number(m.id), m.name]));
-  return rows
-    .filter((i) => names.has(i.medicine_id) && (!day || i.taken_at.startsWith(day)))
-    .map((i) => ({ ...i, medicine_name: names.get(i.medicine_id) }))
-    .sort((a, b) => (a.taken_at < b.taken_at ? 1 : a.taken_at > b.taken_at ? -1 : 0))
-    .slice(0, Math.min(1000, Math.max(1, limit)));
+  return listIntakes(rows, medicines, day, limit);
 }
 
 /** @param {{ medicineId: number, status: "taken" | "skipped", plannedFor?: string | null, dose?: number, note?: string, takenAt?: string }} i */
@@ -47,12 +43,20 @@ async function log(i) {
   return { id: uid };
 }
 
+/** The delete path with what the intake was, so the pending stock can give its dose back (the server ignores the query). @param {string} uid @param {string} path */
+async function withHint(uid, path) {
+  const stored = await col("intakes").get(uid);
+  if (!stored) return path;
+  const hint = new URLSearchParams({ was_medicine: String(stored.medicine_id), was_status: stored.status, was_dose: String(stored.was_dose ?? stored.dose) });
+  return `${path}?${hint}`;
+}
+
 /** Undo: an intake still in the queue is taken back, otherwise the delete is sent (or queued). @param {string} uid */
 async function undo(uid) {
   const own = `${LIST}/${uid}`;
   const unsent = await dropWaiting((e) => e.method === "POST" && e.path === LIST && e.body?.uid === uid);
   if (unsent) await dropWaiting((e) => e.path === own); // edits queued behind it have nothing left to change
-  else await send("DELETE", own);
+  else await send("DELETE", await withHint(uid, own));
   return { undone: uid };
 }
 
@@ -60,7 +64,7 @@ async function undo(uid) {
 async function edit(uid, edit) {
   const stored = await col("intakes").get(uid);
   if (!stored) throw missing;
-  await send("PUT", `${LIST}/${uid}`, { ...stored, ...edit }, stored.rev);
+  await send("PUT", `${LIST}/${uid}`, { ...stored, ...edit, was_dose: stored.was_dose ?? stored.dose }, stored.rev);
   return { id: uid };
 }
 
