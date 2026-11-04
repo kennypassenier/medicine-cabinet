@@ -6,6 +6,25 @@ carries a **Migration** section saying what an operator must do.
 
 ## [Unreleased]
 
+### Added
+- **Offline use.** The pages read and write through the kit's local database
+  (`chassisData`, chassis-rs 4.7.0): Today, Cabinet, Symptoms, History and
+  Settings render after a full reload without a network, a dose taken
+  offline is queued and sent once, and an edit the server refuses lands in the
+  kit's failed-edits list (the server always wins). Today, the dose guard,
+  stock levels and the symptom counts are computed in the page (`web/js/plan/`,
+  `web/js/store/`).
+- Creating a medicine, symptom, category or form works offline: the page makes
+  the id (a UUID) and the create is queued with an `Idempotency-Key`.
+- Sync feed: `GET /api/sync` with five collections (medicines, intakes,
+  symptoms, categories, forms), written in the same transaction as every change.
+- Merged page endpoints `GET /api/mc/pages/{today,cabinet,symptoms,history,settings}`
+  (one call per page; every individual resource keeps its own endpoint). The
+  pages use them when the browser blocks its local database, with a notice
+  "Working online only".
+- Soft delete with 14 days of undo, undo toasts, an unsaved-changes bar,
+  inline lists and a stock popover, a phone tab bar with four tabs and More.
+
 ### Changed
 - **Breaking (API and sync feed):** medicines, symptoms, categories and forms
   are identified by a `uid` (UUID text), shown as the JSON field `id`, so they
@@ -16,9 +35,30 @@ carries a **Migration** section saying what an operator must do.
   (V10 backfills a uid per row; the sync change log is re-keyed). A device
   drops its old local copies and syncs again; edits queued under an integer id
   are refused and land in its failed list.
-- One More menu (Settings, Status, Clients, Storage) and the kit's own refresh
-  control and freshness line instead of an own refresh; needs chassis-rs with
-  `Page::secondary()` and `window.chassisRefresh`.
+- Stock is stored as exact hundredths (migration 9); JSON still shows decimals.
+- Logged doses stay in History after a medicine is purged: each dose keeps the
+  medicine's name (migration 9).
+- A medicine edit is stale only when its description changed, not when a dose
+  changed its stock (migration 11); a stale edit keeps the stock the server holds.
+- Built on chassis-rs 4.7.0 and kp-themes 12.6.0; a page loads in 0.4 s locally
+  (was 3.4 s on 4.6.0).
+
+### Fixed
+- A reminder is marked sent only after it was emitted, so a crash in between
+  sends one twice at worst, never zero times.
+- An overdue dose past midnight now gets its reminder (the loop also reads
+  yesterday's plan for the last 180 minutes).
+- Offline stock follows queued edits and deletes of logged doses; offline
+  counts follow links made offline.
+
+### Known limits
+- The undo of a deleted category or form is a new create.
+- The queue retries every 30 seconds after a lost connection.
+- Dense touch targets on a phone (time button 44 by 42 px, weekday chips 39
+  px wide): parked by Kenny in kp-themes.
+- kp-themes open items: sideways-scrolling chips (worked around in `app.css`),
+  no keyboard path to the undo toast, one accessible name for every row of
+  the row editor, no add-row pattern (built with `kp-autogrid`).
 
 ## [1.0.0] - 2026-10-31
 
