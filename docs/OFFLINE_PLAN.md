@@ -66,8 +66,18 @@ server once the connection returns and the stock drops once; undo of a queued
 Take empties the queue; an offline edit the server refuses (duplicate form
 name, 400) is shown by the kit's notice and the server's version wins.
 
-Known limits: creating a medicine, symptom, category or form needs a
-connection (the server hands out the id); offline stock does not account for
-queued intake edits or deletes; symptom, category and form counts stay stale
-until the next sync. Milestone 4 (hardening) is open: logout-guard wording,
-storage-cap message, a recorded Playwright round trip.
+Update (2026-11-04): creating a medicine, symptom, category or form works offline.
+The page makes the uid, the store creates through the kit's collection `create`
+(queued POST with the kit's Idempotency-Key, shown at once by the overlay; a
+medicine is shaped by `web/js/store/medicine-shape.js`). A dose, an edit or a
+link made for such an item queues behind its create and stays valid because
+every reference is a uid. A create the server refuses on replay (400, duplicate
+name) lands in the kit's failed-edits list. The queue replays on the kit's
+30 s retry timer after the connection returns.
+
+Known limits: offline stock does not account for queued intake edits or deletes
+beyond what stock-effects.js lays over; symptom, category and form counts stay
+stale until the next sync except where counts.js recomputes them; a symptom or
+category created with `medicine_ids` / `symptom_ids` (the undo of a delete) does
+not show its links until the sync. Milestone 4 (hardening) is open: logout-guard
+wording, storage-cap message, a recorded Playwright round trip.
