@@ -8,7 +8,8 @@ use crate::schema::ALL_SQL;
 #[test]
 fn existing_rows_get_distinct_well_formed_uids() {
     let conn = Connection::open_in_memory().unwrap();
-    let (before, v10) = ALL_SQL.split_at(ALL_SQL.len() - 1);
+    // V10 is the second-to-last step; V11 (desc_rev) comes after it.
+    let (before, from_v10) = ALL_SQL.split_at(ALL_SQL.len() - 2);
     for sql in before {
         conn.execute_batch(sql).unwrap();
     }
@@ -18,7 +19,7 @@ fn existing_rows_get_distinct_well_formed_uids() {
          INSERT INTO symptom_categories (name) VALUES ('Head'), ('Gut');",
     )
     .unwrap();
-    conn.execute_batch(v10[0]).unwrap();
+    conn.execute_batch(from_v10[0]).unwrap();
     for table in [
         "medicines",
         "symptoms",
