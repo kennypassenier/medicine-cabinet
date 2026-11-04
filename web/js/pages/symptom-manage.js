@@ -16,7 +16,7 @@ import { drawCategoryPills, UNCATEGORISED } from "./symptom-categories.js";
  * The manager's shared state.
  * @typedef {{
  *   data: { symptoms: any[], categories: any[] }, filter: string, detach: (() => void)[], reload: () => Promise<void>, edited: () => void,
- *   cats: ReturnType<typeof dataCard>, syms: ReturnType<typeof dataCard>, addCat: { focus: () => void }, addSym?: { focus: () => void }, pillHost: HTMLElement, pillError: HTMLElement, symHost: HTMLElement, addSymHost: HTMLElement
+ *   cats: ReturnType<typeof dataCard>, syms: ReturnType<typeof dataCard>, addCat: { focus: () => void }, offAddCat?: () => void, addSym?: { focus: () => void }, pillHost: HTMLElement, pillError: HTMLElement, symHost: HTMLElement, addSymHost: HTMLElement
  * }} Manager
  */
 
@@ -144,6 +144,7 @@ function buildManager(reload, edited) {
     onAdd: async (v) => { await api.addCategory(v.name); await reload(); },
   });
   m.addCat = addCat;
+  m.offAddCat = activate(addCat.el);
   m.cats.data.append(h("div", { class: "kp-stack" }, m.pillHost, m.pillError, addCat.el));
   return m;
 }
@@ -162,6 +163,6 @@ export function createManager({ reload, edited }) {
     loading() { m.cats.state("loading"); m.syms.state("loading"); },
     /** @param {string} text */
     fail(text) { for (const c of [m.cats, m.syms]) c.state("error", { title: "The lists could not be loaded", text }); },
-    stop() { m.detach.forEach((d) => d()); },
+    stop() { m.offAddCat?.(); m.detach.forEach((d) => d()); },
   };
 }

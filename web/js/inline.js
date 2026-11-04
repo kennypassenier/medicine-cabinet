@@ -3,7 +3,7 @@
 // remedy) shown right under it; and the three-dot menu of a row. Built from the
 // package's field, select and menu-button parts.
 
-import { attachMenuButtons, attachSelects, setMenu, MENU_SELECT_EVENT } from "/static/kp/dist/kp-themes.min.js";
+import { attachAddRows, attachForms, attachMenuButtons, attachSelects, setMenu, ADD_EVENT, MENU_SELECT_EVENT } from "/static/kp/dist/kp-themes.min.js";
 import { h } from "./dom.js";
 import { errorText } from "./ui.js";
 
@@ -72,9 +72,9 @@ export function relabelMenu(wrapper, label) {
   wrapper.querySelector("button")?.setAttribute("aria-label", label);
 }
 
-/** Wire the selects and the row menus under `host`, once they are in the page. @param {HTMLElement} host @returns {() => void} detach */
+/** Wire the selects, row menus and add rows under `host`, once they are in the page. @param {HTMLElement} host @returns {() => void} detach */
 export function activate(host) {
-  const detach = [attachSelects(host), attachMenuButtons(host)];
+  const detach = [attachSelects(host), attachMenuButtons(host), attachForms(host), attachAddRows(host)];
   for (const w of /** @type {NodeListOf<HTMLElement>} */ (host.querySelectorAll("[data-kp-menu-button]"))) {
     const actions = menus.get(w);
     if (actions) setMenu(w, [{ group: "", items: actions.map((a) => ({ label: a.label, value: a.value, danger: a.danger })) }]);
@@ -82,47 +82,39 @@ export function activate(host) {
   return () => detach.forEach((d) => d());
 }
 
+/** One field of an add row: its label, the control and the line that holds its refusal. @param {string} fid @param {{ name: string, label: string, placeholder?: string, kind?: "text" | "select", options?: [string, string][], list?: string[], required?: boolean }} f */
+function addField(fid, f) {
+  const control = f.kind === "select"
+    ? h("select", { class: "kp-field__input", id: fid, name: f.name }, ...(f.options ?? []).map(([v, text]) => h("option", { value: v }, text)))
+    : h("input", { class: "kp-field__input", id: fid, name: f.name, type: "text", placeholder: f.placeholder, maxlength: 80, autocomplete: "off", required: f.required ? "" : null, list: f.list ? `${fid}-list` : null });
+  return h("div", { class: "kp-field" },
+    h("label", { class: "kp-field__label", for: fid }, f.label), control,
+    f.list ? h("datalist", { id: `${fid}-list` }, ...f.list.map((u) => h("option", { value: u }))) : null,
+    h("span", { class: "kp-field__error", "data-kp-field-error": "", hidden: true }));
+}
+
 /**
- * The row that adds an entry: the fields and the button on one line, with the server's refusal under them.
- * `onAdd(values)` resolves when the entry exists; the fields are then emptied and the first one has the focus again.
+ * The row that adds an entry: the package's `.kp-addrow--line` (fields and the button on one line, the refusal under them).
+ * `onAdd(values)` resolves when the entry exists; a refusal (message and remedy) is shown under the row and what was typed stays.
+ * It comes alive when `activate(host)` runs on `el` or a host that holds it; `el` is the block of the form grid the line needs.
  * @param {{ label: string, hint: string, accept: string, fields: { name: string, label: string, placeholder?: string, kind?: "text" | "select", options?: [string, string][], list?: string[], required?: boolean }[], onAdd: (values: Record<string, string>) => Promise<unknown> }} o
  */
 export function addRow({ label, hint, accept, fields, onAdd }) {
   const id = `add${++serial}`;
-  const err = errorLine(`${id}-e`);
-  const inputs = fields.map((f, i) => {
-    const fid = `${id}-${i}`;
-    const el = /** @type {HTMLInputElement | HTMLSelectElement} */ (f.kind === "select"
-      ? h("select", { class: "kp-field__input", id: fid, "aria-label": f.label }, ...(f.options ?? []).map(([v, text]) => h("option", { value: v }, text)))
-      : h("input", { class: "kp-field__input", id: fid, type: "text", "aria-label": f.label, placeholder: f.placeholder, maxlength: 80, autocomplete: "off", list: f.list ? `${fid}-list` : null }));
-    return { f, el, list: f.list ? h("datalist", { id: `${fid}-list` }, ...f.list.map((u) => h("option", { value: u }))) : null };
+  const form = h("form", { class: "kp-addrow kp-addrow--line", "data-kp-addrow": "", "data-kp-form": "", novalidate: "", "aria-label": label },
+    h("div", { class: "kp-form__summary", "data-kp-form-summary": "", tabindex: "-1", hidden: true }),
+    h("div", { class: "kp-formgrid__row" },
+      h("span", { class: "kp-formgrid__label" }, label),
+      h("div", { class: "kp-formgrid__control kp-addrow__fields" }, ...fields.map((f, i) => addField(`${id}-${i}`, f))),
+      h("div", { class: "kp-formgrid__actions" }, h("button", { type: "submit", class: "kp-button kp-button--primary", "data-kp-submit": "" }, accept))),
+    h("p", { class: "kp-field__help kp-m-0" }, hint));
+  const el = h("div", { class: "kp-formgrid" }, form);
+  form.addEventListener(ADD_EVENT, (e) => {
+    const { values, waitUntil } = /** @type {CustomEvent} */ (e).detail;
+    waitUntil(onAdd(trimmed(values)).then(() => undefined, (err) => errorText(err)));
   });
-  const go = h("button", { type: "button", class: "kp-button kp-button--primary" }, accept);
-  const clearInvalid = () => inputs.forEach(({ el }) => { el.removeAttribute("aria-invalid"); el.removeAttribute("aria-describedby"); });
-  async function submit() {
-    if (go.hasAttribute("aria-busy")) return; // a double tap must not send the entry twice
-    const values = Object.fromEntries(inputs.map(({ f, el }) => [f.name, el.value.trim()]));
-    const missing = inputs.find(({ f, el }) => f.required && !el.value.trim());
-    clearInvalid();
-    if (missing) { err.textContent = `${missing.f.label} is required. Fill it in, then press ${accept}.`; err.hidden = false; missing.el.setAttribute("aria-invalid", "true"); missing.el.setAttribute("aria-describedby", err.id); return missing.el.focus(); }
-    go.setAttribute("aria-busy", "true");
-    try {
-      await onAdd(values);
-      for (const { f, el } of inputs) if (f.kind !== "select") el.value = "";
-      err.hidden = true;
-      inputs[0].el.focus();
-    } catch (e) {
-      err.textContent = errorText(e);
-      err.hidden = false;
-      inputs[0].el.setAttribute("aria-describedby", err.id);
-    } finally {
-      go.removeAttribute("aria-busy");
-    }
-  }
-  go.addEventListener("click", () => void submit());
-  for (const { el } of inputs) el.addEventListener("keydown", (e) => { if (e.key === "Enter" && el instanceof HTMLInputElement) { e.preventDefault(); void submit(); } });
-  const grid = h("div", { class: "kp-autogrid kp-autogrid--tight mc-inline-grid" }, ...inputs.map(({ el: i }) => i), go);
-  const el = h("div", { class: "kp-stack kp-gap-xs", role: "group", "aria-labelledby": `${id}-t` },
-    h("strong", { id: `${id}-t` }, label), grid, ...inputs.map(({ list }) => list), err, h("p", { class: "kp-field__help kp-m-0" }, hint));
-  return { el, focus: () => inputs[0].el.focus() };
+  return { el, focus: () => /** @type {HTMLElement} */ (el.querySelector("input, select")).focus() };
 }
+
+/** The values of an add row, trimmed. @param {Record<string, unknown>} values */
+const trimmed = (values) => Object.fromEntries(Object.entries(values).map(([k, v]) => [k, String(v ?? "").trim()]));

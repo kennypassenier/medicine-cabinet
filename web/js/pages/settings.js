@@ -83,11 +83,12 @@ export function mount(root) {
   const s = { forms: [], alive: true, detach: [], card, table, add: addRowFor(() => load(s)) };
   card.data.append(table);
   card.card.querySelector(".kp-card__stage")?.before(s.add.el);
+  const offAdd = activate(s.add.el);
   root.append(pageHeader({ title: "Settings", description: "Lookups the cabinet uses. Changes are saved as you make them." }), h("div", { class: "kp-ops__body" }, card.card));
   card.state("loading");
   void load(s);
   // Only an Undo asks for a reload: a timer would redraw the rows under a field being edited.
   const again = () => { if (!table.contains(document.activeElement)) void load(s); };
   window.addEventListener(REFRESH_EVENT, again);
-  return () => { s.alive = false; s.detach.forEach((d) => d()); window.removeEventListener(REFRESH_EVENT, again); };
+  return () => { s.alive = false; offAdd(); s.detach.forEach((d) => d()); window.removeEventListener(REFRESH_EVENT, again); };
 }

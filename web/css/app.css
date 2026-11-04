@@ -41,11 +41,6 @@
   .kp-tabbar { display: none; }
 }
 
-/* Filter chips on a phone wrap onto more lines instead of scrolling sideways, where the last chip is cut and nothing says there is more. */
-@media (max-width: 40rem) {
-  .kp-toolbar .kp-segmented--chips { flex-wrap: wrap; overflow: visible; }
-}
-
 /* Long unbroken text (a 60-letter name, a pasted address) wraps inside its cell instead of widening the page. */
 .kp-listrow__identity,
 .kp-action-list > li > :first-child { min-inline-size: 0; }
@@ -53,6 +48,3 @@
 .kp-listrow__identity *,
 .kp-action-list > li > :first-child,
 .kp-action-list > li > :first-child * { overflow-wrap: anywhere; }
-
-/* The inline add rows (name, unit, button on one line): a narrow minimum per field and no padding of their own. */
-.mc-inline-grid { --kp-autogrid-min: 11rem; --kp-autogrid-pad: 0; }

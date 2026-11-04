@@ -17,11 +17,11 @@ function slotRow(s, unit, n) {
   const unitOne = unit.endsWith("s") ? unit.slice(0, -1) : unit;
   return h("li", { class: "kp-rows__row" },
     h("div", { class: "kp-rows__cell", "data-label": "Time" },
-      h("div", { class: "kp-time", "data-kp-time": "", "data-kp-untracked": "", "data-kp-name": `at-${n}`, "data-kp-value": s.time, "data-kp-label": "Time", "data-kp-time-step": "5" })),
+      h("div", { class: "kp-time", "data-kp-time": "", "data-kp-untracked": "", "data-kp-name": `at-${n}`, "data-kp-value": s.time, "data-kp-label": "Time of dose {n}", "data-kp-time-step": "5" })),
     h("div", { class: "kp-rows__cell", "data-label": "Days" },
-      h("div", { class: "kp-weekdays", "data-kp-weekdays": "", "data-kp-untracked": "", "data-kp-value": daysOf(s.days).join(","), "data-kp-presets": "false", "data-kp-summary": "false", "aria-label": "Days" })),
+      h("div", { class: "kp-weekdays", "data-kp-weekdays": "", "data-kp-untracked": "", "data-kp-value": daysOf(s.days).join(","), "data-kp-presets": "false", "data-kp-summary": "false", "aria-label": "Days of dose {n}" })),
     h("div", { class: "kp-rows__cell", "data-label": "Dose" },
-      h("div", { class: "kp-quantity", "data-kp-quantity": "", "data-kp-untracked": "", "data-kp-quantity-fill": "", "data-kp-quantity-min": "0.25", "data-kp-quantity-step": "0.25", "data-kp-quantity-unit": unit, "data-kp-quantity-unit-one": unitOne, "data-kp-quantity-label": "Dose" },
+      h("div", { class: "kp-quantity", "data-kp-quantity": "", "data-kp-untracked": "", "data-kp-quantity-fill": "", "data-kp-quantity-min": "0.25", "data-kp-quantity-step": "0.25", "data-kp-quantity-unit": unit, "data-kp-quantity-unit-one": unitOne, "data-kp-quantity-label": "Dose {n}" },
         h("input", { class: "kp-quantity__input", autocomplete: "off", value: String(s.dose) }))));
 }
 
