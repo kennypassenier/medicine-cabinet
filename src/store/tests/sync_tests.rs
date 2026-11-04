@@ -3,9 +3,15 @@
 
 use super::*;
 use crate::schema::UID_SQL;
+use crate::store::refs;
 use crate::store::sync_log::{self, Coll};
 use crate::testkit::logged;
 use chassis::storage::sync::client_key;
+
+/// The sync key of a row: its uid.
+fn key_of(tx: &chassis::storage::rusqlite::Transaction, coll: Coll, id: i64) -> String {
+    refs::uid_of(tx, coll, id).unwrap()
+}
 
 #[test]
 fn the_sql_uid_is_a_well_formed_uuid() {
@@ -24,7 +30,7 @@ fn a_medicine_is_logged_and_its_revision_grows_with_every_write() {
     let mut conn = db();
     let tx = conn.transaction().unwrap();
     let id = medicines::insert(&tx, &medicine("A", 5.0)).unwrap();
-    let key = id.to_string();
+    let key = key_of(&tx, Coll::Medicines, id);
     assert_eq!(logged(&tx, "medicines", &key), Some((1, false)));
     medicines::set_active(&tx, id, false).unwrap();
     assert_eq!(logged(&tx, "medicines", &key), Some((2, false)));
@@ -41,13 +47,21 @@ fn a_soft_delete_is_a_feed_delete_and_a_restore_brings_it_back() {
         .unwrap()
         .uid;
     medicines::delete(&tx, id).unwrap();
-    assert!(logged(&tx, "medicines", &id.to_string()).unwrap().1);
+    assert!(
+        logged(&tx, "medicines", &key_of(&tx, Coll::Medicines, id))
+            .unwrap()
+            .1
+    );
     assert!(
         logged(&tx, "intakes", &uid).unwrap().1,
         "its intakes hide too"
     );
     medicines::restore(&tx, id).unwrap();
-    assert!(!logged(&tx, "medicines", &id.to_string()).unwrap().1);
+    assert!(
+        !logged(&tx, "medicines", &key_of(&tx, Coll::Medicines, id))
+            .unwrap()
+            .1
+    );
     assert!(!logged(&tx, "intakes", &uid).unwrap().1);
 }
 
@@ -56,10 +70,17 @@ fn a_taken_dose_moves_the_stock_and_logs_both_rows_and_undo_tombstones_the_intak
     let mut conn = db();
     let tx = conn.transaction().unwrap();
     let id = medicines::insert(&tx, &medicine("A", 5.0)).unwrap();
-    let before = logged(&tx, "medicines", &id.to_string()).unwrap().0;
+    let before = logged(&tx, "medicines", &key_of(&tx, Coll::Medicines, id))
+        .unwrap()
+        .0;
     let rec = intakes::record_keyed(&tx, &taken(id, "2026-11-01T08:00", 1.0), None, None).unwrap();
     assert_eq!(rec.rev, 1);
-    assert!(logged(&tx, "medicines", &id.to_string()).unwrap().0 > before);
+    assert!(
+        logged(&tx, "medicines", &key_of(&tx, Coll::Medicines, id))
+            .unwrap()
+            .0
+            > before
+    );
     intakes::undo(&tx, rec.id).unwrap();
     assert!(logged(&tx, "intakes", &rec.uid).unwrap().1);
 }
@@ -87,15 +108,20 @@ fn deleting_a_symptom_category_or_form_leaves_a_tombstone_and_touches_what_showe
     let tx = conn.transaction().unwrap();
     let cat = categories::create(&tx, "Head", &[]).unwrap();
     let sym = symptoms::create(&tx, "headache", Some(cat), &[]).unwrap();
-    let cat_rev = logged(&tx, "categories", &cat.to_string()).unwrap().0;
+    let (cat_key, sym_key) = (
+        key_of(&tx, Coll::Categories, cat),
+        key_of(&tx, Coll::Symptoms, sym),
+    );
+    let cat_rev = logged(&tx, "categories", &cat_key).unwrap().0;
     symptoms::delete(&tx, sym).unwrap();
-    assert!(logged(&tx, "symptoms", &sym.to_string()).unwrap().1);
-    assert!(logged(&tx, "categories", &cat.to_string()).unwrap().0 > cat_rev);
+    assert!(logged(&tx, "symptoms", &sym_key).unwrap().1);
+    assert!(logged(&tx, "categories", &cat_key).unwrap().0 > cat_rev);
     categories::delete(&tx, cat).unwrap();
-    assert!(logged(&tx, "categories", &cat.to_string()).unwrap().1);
+    assert!(logged(&tx, "categories", &cat_key).unwrap().1);
     let form = forms::create(&tx, "Gel", "g", &[]).unwrap();
+    let form_key = key_of(&tx, Coll::Forms, form);
     forms::delete(&tx, form).unwrap();
-    assert!(logged(&tx, "forms", &form.to_string()).unwrap().1);
+    assert!(logged(&tx, "forms", &form_key).unwrap().1);
 }
 
 #[test]
@@ -107,7 +133,7 @@ fn backfill_logs_rows_that_predate_the_feed_once() {
     assert!(seeded >= 9, "{seeded}");
     assert_eq!(sync_log::backfill(&tx).unwrap(), 0, "idempotent");
     assert!(
-        logged(&tx, "forms", "1").is_some(),
+        logged(&tx, "forms", &key_of(&tx, Coll::Forms, 1)).is_some(),
         "a seeded form is served"
     );
     assert_eq!(sync_log::current_rev(&tx, Coll::Forms, 1).unwrap(), Some(1));

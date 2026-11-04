@@ -5,8 +5,10 @@ use chassis::storage::rusqlite::{Connection, Transaction, params};
 use serde::Serialize;
 
 use super::db_err;
+use super::refs::{self, Keys};
 use super::sync_log::{self, Coll};
 use crate::domain::limits;
+use crate::schema::UID_SQL;
 
 /// Replace the symptom links of one medicine with exactly `names`.
 pub fn set_for_medicine(tx: &Transaction, medicine_id: i64, names: &[String]) -> Result<(), Error> {
@@ -18,8 +20,8 @@ pub fn set_for_medicine(tx: &Transaction, medicine_id: i64, names: &[String]) ->
     )
     .map_err(db_err)?;
     for name in names {
-        tx.execute("INSERT OR IGNORE INTO symptoms (name) VALUES (?1)", [name])
-            .map_err(db_err)?;
+        let sql = format!("INSERT OR IGNORE INTO symptoms (name, uid) VALUES (?1, {UID_SQL})");
+        tx.execute(&sql, [name]).map_err(db_err)?;
         tx.execute(
             "INSERT INTO medicine_symptoms (medicine_id, symptom_id)
              SELECT ?1, id FROM symptoms WHERE name = ?2",
@@ -51,15 +53,20 @@ pub fn for_medicine(conn: &Connection, medicine_id: i64) -> Result<Vec<String>, 
 /// A symptom with its category and how many medicines treat it.
 #[derive(Debug, Serialize)]
 pub struct Symptom {
-    pub id: i64,
+    /// The public identifier; the internal integer id is never read back.
+    #[serde(rename = "id")]
+    pub uid: String,
     pub rev: u64,
     pub name: String,
-    pub category_id: Option<i64>,
+    /// The category's public identifier, serialized as `category_id`.
+    #[serde(rename = "category_id")]
+    pub category_uid: Option<String>,
     pub category: Option<String>,
     pub medicines: i64,
 }
 
-const LIST_SQL: &str = "SELECT s.id, s.name, s.category_id, c.name, COUNT(ms.medicine_id), s.rev
+const LIST_SQL: &str =
+    "SELECT s.id, s.name, s.category_id, c.name, COUNT(ms.medicine_id), s.rev, s.uid, c.uid
      FROM symptoms s
      LEFT JOIN symptom_categories c ON c.id = s.category_id
      LEFT JOIN (SELECT ms.symptom_id, ms.medicine_id FROM medicine_symptoms ms
@@ -73,12 +80,12 @@ fn query(conn: &Connection, only: Option<i64>) -> Result<Vec<Symptom>, Error> {
     let rows = stmt
         .query_map([only], |r| {
             Ok(Symptom {
-                id: r.get(0)?,
                 name: r.get(1)?,
-                category_id: r.get(2)?,
                 category: r.get(3)?,
                 medicines: r.get(4)?,
                 rev: sync_log::read_rev(r, 5)?,
+                uid: r.get(6)?,
+                category_uid: r.get(7)?,
             })
         })
         .map_err(db_err)?;
@@ -118,19 +125,32 @@ fn name_taken(e: chassis::storage::rusqlite::Error, name: &str) -> Error {
 
 /// Create a symptom. `medicine_ids` relinks it to those medicines, which is how an
 /// undo of a delete brings the old links back.
+#[cfg(test)]
 pub fn create(
     tx: &Transaction,
     name: &str,
     category_id: Option<i64>,
     medicine_ids: &[i64],
 ) -> Result<i64, Error> {
+    create_keyed(tx, name, category_id, medicine_ids, &Keys::default())
+}
+
+/// [`create`] under the `uid` the browser made and the `Idempotency-Key` of the request.
+pub fn create_keyed(
+    tx: &Transaction,
+    name: &str,
+    category_id: Option<i64>,
+    medicine_ids: &[i64],
+    keys: &Keys,
+) -> Result<i64, Error> {
     limits::list_len("the medicine list", medicine_ids.len())?;
     let name = clean_name(name)?;
-    tx.execute(
-        "INSERT INTO symptoms (name, category_id) VALUES (?1, ?2)",
-        params![name, category_id],
-    )
-    .map_err(|e| name_taken(e, &name))?;
+    let sql = format!(
+        "INSERT INTO symptoms (name, category_id, uid, idempotency_key)
+         VALUES (?1, ?2, COALESCE(?3, {UID_SQL}), ?4)"
+    );
+    tx.execute(&sql, params![name, category_id, keys.uid, keys.idempotency])
+        .map_err(|e| name_taken(e, &name))?;
     let id = tx.last_insert_rowid();
     for medicine_id in medicine_ids {
         tx.execute(
@@ -186,8 +206,10 @@ pub fn update(
 #[derive(Debug, Serialize)]
 pub struct DeletedSymptom {
     pub name: String,
-    pub category_id: Option<i64>,
-    pub medicine_ids: Vec<i64>,
+    /// The category's `uid`.
+    pub category_id: Option<String>,
+    /// The `uid`s of the medicines it was linked to.
+    pub medicine_ids: Vec<String>,
 }
 
 /// Deleting a symptom unlinks it from every medicine; the result says which.
@@ -199,6 +221,9 @@ pub fn delete(tx: &Transaction, id: i64) -> Result<DeletedSymptom, Error> {
             |r| Ok((r.get(0)?, r.get(1)?)),
         )
         .map_err(|_| super::not_found("symptom", id))?;
+    let category_uid = category_id
+        .map(|c| refs::uid_of(tx, Coll::Categories, c))
+        .transpose()?;
     let mut stmt = tx
         .prepare("SELECT medicine_id FROM medicine_symptoms WHERE symptom_id = ?1")
         .map_err(db_err)?;
@@ -215,7 +240,7 @@ pub fn delete(tx: &Transaction, id: i64) -> Result<DeletedSymptom, Error> {
     sync_log::touch_all(tx, Coll::Medicines, &medicine_ids)?;
     Ok(DeletedSymptom {
         name,
-        category_id,
-        medicine_ids,
+        category_id: category_uid,
+        medicine_ids: refs::uids_of(tx, Coll::Medicines, &medicine_ids)?,
     })
 }

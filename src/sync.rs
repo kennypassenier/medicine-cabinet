@@ -13,22 +13,31 @@ use serde_json::Value;
 
 use crate::clock;
 use crate::store::sync_log::Coll;
-use crate::store::{categories, forms, intakes, medicine_view, symptoms};
+use crate::store::{categories, forms, intakes, medicine_view, refs, symptoms};
 
 /// The five collections, with the routes the page's write queue replays to.
 pub fn collections() -> Vec<SyncCollection> {
     vec![
-        collection(Coll::Medicines, "id", "/api/mc/medicines"),
-        collection(Coll::Intakes, "uid", "/api/mc/intakes"),
-        collection(Coll::Symptoms, "id", "/api/mc/symptoms"),
-        collection(Coll::Categories, "id", "/api/mc/categories"),
-        collection(Coll::Forms, "id", "/api/mc/forms"),
+        collection(Coll::Medicines, "/api/mc/medicines"),
+        collection(Coll::Intakes, "/api/mc/intakes"),
+        collection(Coll::Symptoms, "/api/mc/symptoms"),
+        collection(Coll::Categories, "/api/mc/categories"),
+        collection(Coll::Forms, "/api/mc/forms"),
     ]
 }
 
-fn collection(coll: Coll, key: &str, list_route: &str) -> SyncCollection {
+/// An intake body carries its own `uid`; the other four carry their public
+/// identifier as `id`. Both are the key the device stores the item under.
+fn key_field(coll: Coll) -> &'static str {
+    match coll {
+        Coll::Intakes => "uid",
+        _ => "id",
+    }
+}
+
+fn collection(coll: Coll, list_route: &str) -> SyncCollection {
     SyncCollection::new(coll.name())
-        .key(key)
+        .key(key_field(coll))
         .rev("rev")
         .shared()
         .routes(list_route, &format!("{list_route}/:id"))
@@ -67,14 +76,17 @@ impl SyncLoad for Loader {
 impl Loader {
     fn body(&self, conn: &Connection, collection: &str, key: &str) -> Result<Option<Value>, Error> {
         match collection {
-            "medicines" => {
-                let today = clock::now_in(self.zone).date;
-                json(medicine_view::find(conn, numeric(key)?, today)?)
-            }
+            "medicines" => match refs::lookup(conn, Coll::Medicines, key)? {
+                Some(id) => {
+                    let today = clock::now_in(self.zone).date;
+                    json(medicine_view::find(conn, id, today)?)
+                }
+                None => Ok(None),
+            },
             "intakes" => json(intakes::get_by_uid(conn, key)?),
-            "symptoms" => json(symptoms::get(conn, numeric(key)?)?),
-            "categories" => json(categories::get(conn, numeric(key)?)?),
-            "forms" => json(forms::get(conn, numeric(key)?)?),
+            "symptoms" => json_by_uid(conn, Coll::Symptoms, key, symptoms::get),
+            "categories" => json_by_uid(conn, Coll::Categories, key, categories::get),
+            "forms" => json_by_uid(conn, Coll::Forms, key, forms::get),
             other => Err(Error::internal(
                 format!("the sync feed asked for an unknown collection `{other}`"),
                 "report this: sync collections and the loader are out of step",
@@ -83,13 +95,17 @@ impl Loader {
     }
 }
 
-fn numeric(key: &str) -> Result<i64, Error> {
-    key.parse().map_err(|_| {
-        Error::internal(
-            format!("the sync key `{key}` is not a number"),
-            "report this: the change log holds a key this collection never writes",
-        )
-    })
+/// The body of the item `key` (a uid) of a collection, `None` when it is gone.
+fn json_by_uid<T: Serialize>(
+    conn: &Connection,
+    coll: Coll,
+    key: &str,
+    get: impl Fn(&Connection, i64) -> Result<Option<T>, Error>,
+) -> Result<Option<Value>, Error> {
+    match refs::lookup(conn, coll, key)? {
+        Some(id) => json(get(conn, id)?),
+        None => Ok(None),
+    }
 }
 
 fn json(item: Option<impl Serialize>) -> Result<Option<Value>, Error> {
@@ -120,14 +136,11 @@ mod tests {
     }
 
     #[test]
-    fn the_intake_collection_is_keyed_by_uid() {
-        let intakes = &collections()[1];
-        assert_eq!(intakes.key_field(), "uid");
-    }
-
-    #[test]
-    fn a_non_numeric_key_is_an_error_not_a_silent_skip() {
-        assert!(numeric("3f2b8c1e").is_err());
-        assert_eq!(numeric("12").unwrap(), 12);
+    fn every_collection_is_keyed_by_a_uid() {
+        let keys: Vec<String> = collections()
+            .iter()
+            .map(|c| c.key_field().to_string())
+            .collect();
+        assert_eq!(keys, ["id", "uid", "id", "id", "id"]);
     }
 }

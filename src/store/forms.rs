@@ -4,13 +4,17 @@ use chassis::Error;
 use chassis::storage::rusqlite::{Connection, Transaction, params};
 use serde::Serialize;
 
+use super::refs::{self, Keys};
 use super::sync_log::{self, Coll};
 use super::{db_err, not_found};
 use crate::domain::limits;
+use crate::schema::UID_SQL;
 
 #[derive(Debug, Serialize)]
 pub struct Form {
-    pub id: i64,
+    /// The public identifier; the internal integer id is never read back.
+    #[serde(rename = "id")]
+    pub uid: String,
     pub rev: u64,
     pub name: String,
     /// What stock of this form is counted in ("tablets", "ml").
@@ -18,7 +22,8 @@ pub struct Form {
     pub medicines: i64,
 }
 
-const LIST_SQL: &str = "SELECT f.id, f.name, f.unit, COUNT(m.id), f.rev FROM medicine_forms f
+const LIST_SQL: &str =
+    "SELECT f.id, f.name, f.unit, COUNT(m.id), f.rev, f.uid FROM medicine_forms f
      LEFT JOIN medicines m ON m.form_id = f.id AND m.deleted_at IS NULL
      WHERE (?1 IS NULL OR f.id = ?1)
      GROUP BY f.id ORDER BY f.name COLLATE NOCASE";
@@ -28,11 +33,11 @@ fn query(conn: &Connection, only: Option<i64>) -> Result<Vec<Form>, Error> {
     let rows = stmt
         .query_map([only], |r| {
             Ok(Form {
-                id: r.get(0)?,
                 name: r.get(1)?,
                 unit: r.get(2)?,
                 medicines: r.get(3)?,
                 rev: sync_log::read_rev(r, 4)?,
+                uid: r.get(5)?,
             })
         })
         .map_err(db_err)?;
@@ -74,19 +79,32 @@ fn name_taken(e: chassis::storage::rusqlite::Error, name: &str) -> Error {
 
 /// Create a form. `medicine_ids` sets this form on those medicines, which is how an
 /// undo of a delete brings them back.
+#[cfg(test)]
 pub fn create(
     tx: &Transaction,
     name: &str,
     unit: &str,
     medicine_ids: &[i64],
 ) -> Result<i64, Error> {
+    create_keyed(tx, name, unit, medicine_ids, &Keys::default())
+}
+
+/// [`create`] under the `uid` the browser made and the `Idempotency-Key` of the request.
+pub fn create_keyed(
+    tx: &Transaction,
+    name: &str,
+    unit: &str,
+    medicine_ids: &[i64],
+    keys: &Keys,
+) -> Result<i64, Error> {
     limits::list_len("the medicine list", medicine_ids.len())?;
     let (name, unit) = clean(name, unit)?;
-    tx.execute(
-        "INSERT INTO medicine_forms (name, unit) VALUES (?1, ?2)",
-        params![name, unit],
-    )
-    .map_err(|e| name_taken(e, &name))?;
+    let sql = format!(
+        "INSERT INTO medicine_forms (name, unit, uid, idempotency_key)
+         VALUES (?1, ?2, COALESCE(?3, {UID_SQL}), ?4)"
+    );
+    tx.execute(&sql, params![name, unit, keys.uid, keys.idempotency])
+        .map_err(|e| name_taken(e, &name))?;
     let id = tx.last_insert_rowid();
     sync_log::created(tx, Coll::Forms, id)?;
     set_on_medicines(tx, id, medicine_ids)?;
@@ -135,7 +153,8 @@ pub fn update(tx: &Transaction, id: i64, name: &str, unit: &str) -> Result<(), E
 pub struct DeletedForm {
     pub name: String,
     pub unit: String,
-    pub medicine_ids: Vec<i64>,
+    /// The `uid`s of the medicines it was set on.
+    pub medicine_ids: Vec<String>,
 }
 
 /// Medicines of this form keep existing; they just have no form any more.
@@ -163,6 +182,6 @@ pub fn delete(tx: &Transaction, id: i64) -> Result<DeletedForm, Error> {
     Ok(DeletedForm {
         name,
         unit,
-        medicine_ids,
+        medicine_ids: refs::uids_of(tx, Coll::Medicines, &medicine_ids)?,
     })
 }

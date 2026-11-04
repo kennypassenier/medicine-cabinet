@@ -5,6 +5,7 @@ use super::*;
 fn dose(id: i64, name: &str, time: &str, state: SlotState, minutes_until: i64) -> PlannedDose {
     PlannedDose {
         medicine_id: id,
+        medicine_uid: format!("uid-m{id}"),
         medicine_name: name.into(),
         time: time.into(),
         dose: 1.0,
@@ -18,6 +19,7 @@ fn dose(id: i64, name: &str, time: &str, state: SlotState, minutes_until: i64) -
 fn attention(id: i64, name: &str, kind: &'static str, detail: &str) -> Attention {
     Attention {
         medicine_id: id,
+        medicine_uid: format!("uid-m{id}"),
         medicine_name: name.into(),
         kind,
         detail: detail.into(),

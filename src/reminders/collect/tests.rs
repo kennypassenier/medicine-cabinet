@@ -24,6 +24,7 @@ fn logged(status: &str) -> Intake {
         uid: "uid-9".into(),
         rev: 1,
         medicine_id: Some(1),
+        medicine_uid: Some("uid-m1".into()),
         medicine_name: String::new(),
         taken_at: "2026-10-27T00:10".into(),
         planned_for: Some("2026-10-26T23:30".into()),

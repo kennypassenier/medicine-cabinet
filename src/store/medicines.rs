@@ -3,10 +3,12 @@
 use chassis::Error;
 use chassis::storage::rusqlite::{Transaction, params};
 
+use super::refs::Keys;
 use super::sync_log::{self, Coll};
 use super::{db_err, not_found, symptoms};
 use crate::domain::medicine::MedicineInput;
 use crate::domain::quantity;
+use crate::schema::UID_SQL;
 
 pub use super::medicine_view::{Medicine, get, list};
 
@@ -19,13 +21,25 @@ fn ensure_form(tx: &Transaction, form_id: Option<i64>) -> Result<(), Error> {
     .map_err(|_| not_found("form", id))
 }
 
+/// Insert under a server-made `uid`.
 pub fn insert(tx: &Transaction, m: &MedicineInput) -> Result<i64, Error> {
+    insert_keyed(tx, m, &Keys::default())
+}
+
+/// Insert under the `uid` the browser made (the server makes one when
+/// `None`), remembering the `Idempotency-Key` the request carried.
+pub fn insert_keyed(tx: &Transaction, m: &MedicineInput, keys: &Keys) -> Result<i64, Error> {
     ensure_form(tx, m.form_id)?;
-    tx.execute(
+    let sql = format!(
         "INSERT INTO medicines (name, purpose, form_id, strength, notes, active, as_needed,
             min_gap_minutes, max_per_day, stock_hundredths, stock_unit,
-            low_stock_at_hundredths, expires_on, opened_on, shelf_life_days, course_ends_on)
-         VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16)",
+            low_stock_at_hundredths, expires_on, opened_on, shelf_life_days, course_ends_on,
+            uid, idempotency_key)
+         VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,
+                 COALESCE(?17, {UID_SQL}), ?18)"
+    );
+    tx.execute(
+        &sql,
         params![
             m.name,
             m.purpose,
@@ -42,7 +56,9 @@ pub fn insert(tx: &Transaction, m: &MedicineInput) -> Result<i64, Error> {
             m.expires_on,
             m.opened_on,
             m.shelf_life_days,
-            m.course_ends_on
+            m.course_ends_on,
+            keys.uid,
+            keys.idempotency
         ],
     )
     .map_err(db_err)?;

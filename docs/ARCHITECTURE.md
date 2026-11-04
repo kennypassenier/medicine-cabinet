@@ -104,15 +104,35 @@ agenda_sent   (no relations; keyed by the calendar external id)
 
 | Table | Columns that matter | Notes |
 |---|---|---|
-| `medicines` | `name`, `purpose`, `form_id`, `strength`, `notes`, `active`, `as_needed`, `min_gap_minutes`, `max_per_day`, `stock_hundredths` (integer), `stock_unit`, `low_stock_at_hundredths` (V9; the API shows decimals), `expires_on`, `opened_on`, `shelf_life_days`, `course_ends_on`, `created_at`, `deleted_at` | `deleted_at` (V6) is the soft delete. The text column `form` from V1 is still there and no longer read (V3 copied its values into `medicine_forms`). Dates are `YYYY-MM-DD` text. |
+| `medicines` | `name`, `purpose`, `form_id`, `strength`, `notes`, `active`, `as_needed`, `min_gap_minutes`, `max_per_day`, `stock_hundredths` (integer), `stock_unit`, `low_stock_at_hundredths` (V9; the API shows decimals), `expires_on`, `opened_on`, `shelf_life_days`, `course_ends_on`, `created_at`, `deleted_at`, `rev`, `uid`, `idempotency_key` | `deleted_at` (V6) is the soft delete. The text column `form` from V1 is still there and no longer read (V3 copied its values into `medicine_forms`). Dates are `YYYY-MM-DD` text. |
 | `schedule_slots` | `medicine_id`, `time_of_day` `HH:MM`, `days` (bitmask, default 127), `dose` (real, default 1) | Rewritten as a set on every save of a medicine. Cascade on medicine delete. |
 | `intakes` | `medicine_id` (nullable, ON DELETE SET NULL), `medicine_name` (snapshot), `taken_at`, `planned_for`, `status` (`taken` or `skipped`, a CHECK), `dose_hundredths`, `deducted_hundredths`, `note`, `rev`, `uid`, `idempotency_key` | V9 rebuilt the table. Purging a medicine keeps its doses as history (id NULL, stored name). Stock and doses are integer hundredths, converted at the edge in `domain/quantity.rs`. Index `(medicine_id, taken_at)`, unique `uid`. No uniqueness on slots: two intakes may answer one slot. |
-| `symptoms` | `name` (UNIQUE), `category_id` (ON DELETE SET NULL) | V2 made them first-class: they survive losing their last medicine. Names are lowercased by the code. |
+| `symptoms` | `name` (UNIQUE), `category_id` (ON DELETE SET NULL), `rev`, `uid`, `idempotency_key` | V2 made them first-class: they survive losing their last medicine. Names are lowercased by the code. |
 | `medicine_symptoms` | `(medicine_id, symptom_id)` primary key | Both sides cascade. |
-| `symptom_categories` | `name` (UNIQUE, NOCASE) | |
-| `medicine_forms` | `name` (UNIQUE, NOCASE), `unit` | Nine rows from V3. `medicines.form_id` is ON DELETE SET NULL. |
+| `symptom_categories` | `name` (UNIQUE, NOCASE), `rev`, `uid`, `idempotency_key` | |
+| `medicine_forms` | `name` (UNIQUE, NOCASE), `unit`, `rev`, `uid`, `idempotency_key` | Nine rows from V3. `medicines.form_id` is ON DELETE SET NULL. |
 | `reminder_log` | `(medicine_id, planned_for, kind)` primary key, `sent_at` | `planned_for` is the slot (`YYYY-MM-DDTHH:MM`) or, for the digest, the date. Pruned after 7 days. |
 | `agenda_sent` | `external_id` primary key, `fingerprint`, `sent_at` | What the hub was last told. |
+
+**Two identifiers (V10).** `medicines`, `symptoms`, `symptom_categories` and
+`medicine_forms` have the integer `id` (internal: primary key, every foreign key,
+`reminder_log`, the calendar external ids `expiry:<id>`) and a `uid` (UUID text,
+unique index): the only identifier the API and the sync feed show, as the JSON
+field `id`. Reason: creating one of them must work offline like logging a dose
+does. The device makes the uid with `crypto.randomUUID()`, links to it at once
+and sends the create later with an `Idempotency-Key`; an integer from the
+server could not exist yet. `idempotency_key` (unique where not null) lets a
+replayed create be answered with the first row instead of making a second.
+The edge is small and in one place: store structs keep the integer for internal
+use and serialize their `uid` as `id` (`#[serde(skip)]` plus
+`#[serde(rename = "id")]`); `store/refs.rs` maps uid to id and back inside one
+transaction (400 for a malformed uid, 404 for an unknown one in a URL, 400
+naming the field for an unknown one in a body), and `api/create.rs` applies
+the kit's create rule (`client_key`, `check_create`) to every create route. The
+sync collections are keyed by uid; V10 is followed by a code step
+(`store/sync_rekey.rs`) that turns every live integer-keyed change-log entry
+into a tombstone and records the uid keys, so a device removes its old copies
+and syncs again.
 
 **Stock is a number, not a ledger.** `medicines.stock` is changed by
 `adjust_stock` (`MAX(0, stock + delta)`) from four places: a taken intake

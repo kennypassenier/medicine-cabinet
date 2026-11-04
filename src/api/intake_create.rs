@@ -13,6 +13,8 @@ use serde::Deserialize;
 use uuid::Uuid;
 
 use crate::store::intakes::{self, IntakeInput, Recorded};
+use crate::store::refs;
+use crate::store::sync_log::Coll;
 
 #[derive(Debug, Deserialize)]
 pub struct IntakeBody {
@@ -20,6 +22,8 @@ pub struct IntakeBody {
     input: IntakeInput,
     /// The key the browser made with `crypto.randomUUID()`; absent: the server makes one.
     uid: Option<String>,
+    /// The `id` of the medicine taken.
+    medicine_id: String,
 }
 
 pub async fn record(
@@ -35,7 +39,11 @@ pub async fn record(
         .map(|u| u.to_string());
     let sent = key.get();
     let outcome = db
-        .write(move |tx| create(tx, &body.input, uid.as_deref(), sent))
+        .write(move |tx| {
+            let mut input = body.input;
+            input.medicine_id = refs::field(tx, Coll::Medicines, "medicine_id", &body.medicine_id)?;
+            create(tx, &input, uid.as_deref(), sent)
+        })
         .await?;
     Ok(match outcome {
         Ok(r) => {

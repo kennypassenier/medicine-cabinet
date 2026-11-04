@@ -8,7 +8,11 @@ use crate::store::medicines::Medicine;
 
 #[derive(Debug, Serialize)]
 pub struct Attention {
+    #[serde(skip)]
     pub medicine_id: i64,
+    /// The medicine's public identifier, serialized as `medicine_id`.
+    #[serde(rename = "medicine_id")]
+    pub medicine_uid: String,
     pub medicine_name: String,
     /// `out_of_stock`, `low_stock`, `expired`, `expiring_soon`, `course_ends_soon`.
     pub kind: &'static str,
@@ -21,6 +25,7 @@ pub fn attention_for(all: &[Medicine], today: Date) -> Vec<Attention> {
         let mut push = |kind, detail: String| {
             out.push(Attention {
                 medicine_id: m.id,
+                medicine_uid: m.uid.clone(),
                 medicine_name: m.name.clone(),
                 kind,
                 detail,

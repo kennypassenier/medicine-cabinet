@@ -14,13 +14,20 @@ use crate::domain::schedule::SlotInput;
 /// A medicine as the API returns it, with the judgements the UI shows.
 #[derive(Debug, Serialize)]
 pub struct Medicine {
+    /// Internal key; the API shows the `uid` as `id`.
+    #[serde(skip)]
     pub id: i64,
+    /// The public identifier, serialized as `id`.
+    #[serde(rename = "id")]
+    pub uid: String,
     /// Revision for the offline feed; bumped by every write.
     pub rev: u64,
     pub name: String,
     pub purpose: String,
     pub form: String,
-    pub form_id: Option<i64>,
+    /// The form's public identifier, serialized as `form_id`.
+    #[serde(rename = "form_id")]
+    pub form_uid: Option<String>,
     pub strength: String,
     pub notes: String,
     pub active: bool,
@@ -47,7 +54,8 @@ pub struct Medicine {
 const COLUMNS: &str = "id, name, purpose,
     COALESCE((SELECT name FROM medicine_forms f WHERE f.id = medicines.form_id), ''), strength, notes, active, as_needed,
     min_gap_minutes, max_per_day, stock_hundredths, stock_unit, low_stock_at_hundredths,
-    expires_on, opened_on, shelf_life_days, course_ends_on, form_id, rev";
+    expires_on, opened_on, shelf_life_days, course_ends_on, form_id, rev, uid,
+    (SELECT f.uid FROM medicine_forms f WHERE f.id = medicines.form_id)";
 
 fn read_row(r: &Row, today: Date) -> Result<Medicine, chassis::storage::rusqlite::Error> {
     let expires_on: Option<String> = r.get(13)?;
@@ -63,11 +71,12 @@ fn read_row(r: &Row, today: Date) -> Result<Medicine, chassis::storage::rusqlite
         .is_some_and(|end| end < today);
     Ok(Medicine {
         id: r.get(0)?,
+        uid: r.get(19)?,
         rev: super::sync_log::read_rev(r, 18)?,
         name: r.get(1)?,
         purpose: r.get(2)?,
         form: r.get(3)?,
-        form_id: r.get(17)?,
+        form_uid: r.get(20)?,
         strength: r.get(4)?,
         notes: r.get(5)?,
         active: r.get::<_, i64>(6)? != 0,

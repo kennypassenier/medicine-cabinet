@@ -7,6 +7,15 @@ carries a **Migration** section saying what an operator must do.
 ## [Unreleased]
 
 ### Changed
+- **Breaking (API and sync feed):** medicines, symptoms, categories and forms
+  are identified by a `uid` (UUID text), shown as the JSON field `id`, so they
+  can be created offline; every reference to them is a uid too (`form_id`,
+  `category_id`, `medicine_id`, `medicine_ids`, `symptom_ids`) and so are the
+  route parameters. Creating one accepts an optional `id` and an
+  `Idempotency-Key` and answers `{id, rev}`. **Migration:** automatic at start
+  (V10 backfills a uid per row; the sync change log is re-keyed). A device
+  drops its old local copies and syncs again; edits queued under an integer id
+  are refused and land in its failed list.
 - One More menu (Settings, Status, Clients, Storage) and the kit's own refresh
   control and freshness line instead of an own refresh; needs chassis-rs with
   `Page::secondary()` and `window.chassisRefresh`.

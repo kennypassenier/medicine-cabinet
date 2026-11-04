@@ -17,6 +17,9 @@ pub use super::intake_queries::{
 
 #[derive(Debug, Deserialize)]
 pub struct IntakeInput {
+    /// The internal id of the medicine. Never read from a request: the API
+    /// resolves the `medicine_id` uid the body carries into it.
+    #[serde(skip)]
     pub medicine_id: i64,
     /// Local `YYYY-MM-DDTHH:MM` when it happened.
     pub taken_at: String,

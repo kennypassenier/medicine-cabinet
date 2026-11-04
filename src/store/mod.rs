@@ -7,11 +7,13 @@ pub mod intake_queries;
 pub mod intakes;
 pub mod medicine_view;
 pub mod medicines;
+pub mod refs;
 pub mod reminder_log;
 pub mod slots;
 pub mod stock;
 pub mod symptoms;
 pub mod sync_log;
+pub mod sync_rekey;
 
 use chassis::Error;
 use chassis::storage::rusqlite;
@@ -32,10 +34,11 @@ pub fn db_err(e: rusqlite::Error) -> Error {
     )
 }
 
-pub fn not_found(what: &str, id: i64) -> Error {
+/// A write named a row that is not there. The internal id is never shown.
+pub fn not_found(what: &str, _id: i64) -> Error {
     Error::new(
         chassis::Kind::NotFound,
-        format!("{what} {id} does not exist"),
+        format!("that {what} does not exist"),
         "reload the list; it may have been deleted",
     )
 }

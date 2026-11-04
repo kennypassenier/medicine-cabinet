@@ -2,7 +2,8 @@
 
 use chassis::Kind;
 
-use super::tests::{db, medicine, taken, today};
+use super::sync_log::Coll;
+use super::tests::{db, ident, medicine, taken, today};
 use super::{forms, intakes, medicines, slots, stock, symptoms};
 use crate::domain::schedule::SlotInput;
 use crate::store::intakes::{IntakeEdit, IntakeInput};
@@ -135,7 +136,7 @@ fn counts_leave_out_soft_deleted_medicines() {
         .find(|f| f.name == "Tablet")
         .unwrap();
     let mut input = medicine("A", 1.0);
-    input.form_id = Some(tablet.id);
+    input.form_id = Some(ident(&tx, Coll::Forms, &tablet.uid));
     let id = medicines::insert(&tx, &input).unwrap();
     medicines::delete(&tx, id).unwrap();
     assert_eq!(symptoms::list(&tx).unwrap()[0].medicines, 0);
@@ -143,7 +144,7 @@ fn counts_leave_out_soft_deleted_medicines() {
         forms::list(tx)
             .unwrap()
             .into_iter()
-            .find(|f| f.id == tablet.id)
+            .find(|f| f.uid == tablet.uid)
             .unwrap()
             .medicines
     };

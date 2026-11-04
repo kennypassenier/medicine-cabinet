@@ -55,6 +55,7 @@ mod tests {
     fn slot(minute: u32) -> PlanSlot {
         PlanSlot {
             medicine_id: 1,
+            medicine_uid: "uid-1".into(),
             medicine_name: "X".into(),
             minute,
             time: format!("{:02}:{:02}", minute / 60, minute % 60),

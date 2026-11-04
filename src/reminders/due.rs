@@ -76,6 +76,7 @@ mod tests {
     fn dose(state: SlotState, minutes_until: i64) -> PlannedDose {
         PlannedDose {
             medicine_id: 1,
+            medicine_uid: "uid-m1".into(),
             medicine_name: "Vitamin D".into(),
             time: "08:00".into(),
             dose: 1.0,
@@ -121,6 +122,7 @@ mod tests {
     fn the_digest_skips_what_was_sent() {
         let item = Attention {
             medicine_id: 2,
+            medicine_uid: "uid-m2".into(),
             medicine_name: "X".into(),
             kind: "low_stock",
             detail: "Low.".into(),

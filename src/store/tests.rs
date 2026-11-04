@@ -2,6 +2,8 @@
 
 use chassis::storage::rusqlite::Connection;
 
+use super::refs;
+use super::sync_log::Coll;
 use super::{categories, forms, intakes, medicines, symptoms};
 use crate::domain::date::Date;
 use crate::domain::medicine::MedicineInput;
@@ -9,6 +11,13 @@ use crate::store::intakes::{IntakeEdit, IntakeInput};
 
 pub(super) fn db() -> Connection {
     crate::testkit::sync_db()
+}
+
+/// The internal id behind a uid the API would show.
+pub(super) fn ident(conn: &Connection, coll: Coll, uid: &str) -> i64 {
+    refs::lookup(conn, coll, uid)
+        .unwrap()
+        .expect("the uid is held")
 }
 
 pub(super) fn today() -> Date {
@@ -142,12 +151,15 @@ fn deleting_a_symptom_reports_its_links_and_recreating_restores_them() {
     let a = medicines::insert(&tx, &medicine("A", 1.0)).unwrap();
     let b = medicines::insert(&tx, &medicine("B", 1.0)).unwrap();
     let head = categories::create(&tx, "Head", &[]).unwrap();
-    let symptom = symptoms::list(&tx).unwrap()[0].id;
+    let symptom = ident(&tx, Coll::Symptoms, &symptoms::list(&tx).unwrap()[0].uid);
     symptoms::update(&tx, symptom, "headache", Some(head)).unwrap();
     let gone = symptoms::delete(&tx, symptom).unwrap();
     assert_eq!(gone.medicine_ids.len(), 2);
     assert!(medicines::get(&tx, a, today()).unwrap().symptoms.is_empty());
-    symptoms::create(&tx, &gone.name, gone.category_id, &gone.medicine_ids).unwrap();
+    let category =
+        refs::field_opt(&tx, Coll::Categories, "c", gone.category_id.as_deref()).unwrap();
+    let linked = refs::field_all(&tx, Coll::Medicines, "m", &gone.medicine_ids).unwrap();
+    symptoms::create(&tx, &gone.name, category, &linked).unwrap();
     for id in [a, b] {
         assert_eq!(
             medicines::get(&tx, id, today()).unwrap().symptoms,
@@ -164,12 +176,14 @@ fn deleting_a_category_reports_its_symptoms_and_recreating_refiles_them() {
     let tx = conn.transaction().unwrap();
     medicines::insert(&tx, &medicine("A", 1.0)).unwrap();
     let head = categories::create(&tx, "Head", &[]).unwrap();
-    let symptom = symptoms::list(&tx).unwrap()[0].id;
+    let symptom_uid = symptoms::list(&tx).unwrap()[0].uid.clone();
+    let symptom = ident(&tx, Coll::Symptoms, &symptom_uid);
     symptoms::update(&tx, symptom, "headache", Some(head)).unwrap();
     let gone = categories::delete(&tx, head).unwrap();
-    assert_eq!(gone.symptom_ids, vec![symptom]);
+    assert_eq!(gone.symptom_ids, vec![symptom_uid]);
     assert_eq!(symptoms::list(&tx).unwrap()[0].category, None);
-    categories::create(&tx, &gone.name, &gone.symptom_ids).unwrap();
+    let filed = refs::field_all(&tx, Coll::Symptoms, "s", &gone.symptom_ids).unwrap();
+    categories::create(&tx, &gone.name, &filed).unwrap();
     assert_eq!(
         symptoms::list(&tx).unwrap()[0].category.as_deref(),
         Some("Head")
@@ -190,12 +204,15 @@ fn deleting_a_form_reports_its_medicines_and_recreating_sets_it_again() {
         .find(|f| f.name == "Tablet")
         .unwrap();
     let mut input = medicine("A", 1.0);
-    input.form_id = Some(tablet.id);
+    let tablet_id = ident(&tx, Coll::Forms, &tablet.uid);
+    input.form_id = Some(tablet_id);
     let id = medicines::insert(&tx, &input).unwrap();
-    let gone = forms::delete(&tx, tablet.id).unwrap();
-    assert_eq!(gone.medicine_ids, vec![id]);
+    let gone = forms::delete(&tx, tablet_id).unwrap();
+    let medicine_uid = refs::uid_of(&tx, Coll::Medicines, id).unwrap();
+    assert_eq!(gone.medicine_ids, vec![medicine_uid]);
     assert_eq!(medicines::get(&tx, id, today()).unwrap().form, "");
-    forms::create(&tx, &gone.name, &gone.unit, &gone.medicine_ids).unwrap();
+    let set_on = refs::field_all(&tx, Coll::Medicines, "m", &gone.medicine_ids).unwrap();
+    forms::create(&tx, &gone.name, &gone.unit, &set_on).unwrap();
     assert_eq!(medicines::get(&tx, id, today()).unwrap().form, "Tablet");
 }
 
@@ -204,4 +221,5 @@ mod intakes_more;
 mod lists_more;
 mod logs_more;
 mod medicines_more;
+mod migration_v10;
 mod sync_tests;

@@ -5,6 +5,7 @@ use super::*;
 fn slot(name: &str, minute: u32, answered: Option<&str>) -> PlanSlot {
     PlanSlot {
         medicine_id: 1,
+        medicine_uid: "uid-1".into(),
         medicine_name: name.into(),
         minute,
         time: format!("{:02}:{:02}", minute / 60, minute % 60),

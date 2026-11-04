@@ -10,8 +10,8 @@ use super::{ApiResult, Clock};
 use crate::domain::date::Date;
 use crate::domain::schedule::{DoseVerdict, PastDose, check_dose};
 use crate::store::intakes::{self, Intake, IntakeEdit};
-use crate::store::medicines;
 use crate::store::sync_log::Coll;
+use crate::store::{medicines, refs};
 use chassis::{ApiJson, ApiPath, ApiQuery, Error, IfMatch, Revisioned};
 
 use super::guard::guarded;
@@ -38,22 +38,21 @@ pub async fn list(
         .map(Json)
 }
 
-/// Correct the time, dose or note of a logged intake (addressed by id or `uid`).
+/// Correct the time, dose or note of a logged intake (addressed by its `uid` or id).
 pub async fn edit(
     State(db): State<AppDb>,
     ApiPath(reference): ApiPath<String>,
     if_match: IfMatch,
     ApiJson(edit): ApiJson<IntakeEdit>,
 ) -> Result<Response, Error> {
-    let id = db.read(move |c| intakes::resolve(c, &reference)).await?;
-    let done = guarded(&db, if_match, Coll::Intakes, id, move |tx| {
+    let done = guarded(&db, if_match, Coll::Intakes, reference, move |tx, id| {
         intakes::edit(tx, id, &edit)
     })
     .await?;
     Ok(match done {
         Err(conflict) => conflict.into_response(),
-        Ok((rev, ())) => {
-            Revisioned::new(rev, serde_json::json!({ "id": id, "rev": rev })).into_response()
+        Ok(d) => {
+            Revisioned::new(d.rev, serde_json::json!({ "id": d.id, "rev": d.rev })).into_response()
         }
     })
 }
@@ -70,12 +69,13 @@ pub async fn undo(
 /// May an as-needed medicine be taken right now?
 pub async fn dose_check(
     State(db): State<AppDb>,
-    ApiPath(id): ApiPath<i64>,
+    ApiPath(reference): ApiPath<String>,
     ApiQuery(c): ApiQuery<Clock>,
 ) -> ApiResult<DoseVerdict> {
     let (today, minute) = (c.date()?, c.minute()?);
     let verdict = db
         .read(move |conn| {
+            let id = refs::path(conn, Coll::Medicines, &reference)?;
             let m = medicines::get(conn, id, today)?;
             let ago =
                 intakes::recent_taken_minutes_ago(conn, id, today.to_days(), i64::from(minute))?;

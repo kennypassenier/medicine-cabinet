@@ -68,7 +68,7 @@ kind (`chassis` `Kind::status`):
 |---|---|---|
 | 400 | invalid | a field fails validation; a duplicate name |
 | 404 | not found | the id does not exist (or is soft-deleted) |
-| 502 | dependency | the database refused the request, for example a `category_id` that does not exist |
+| 502 | dependency | the database refused the request (a body reference to an unknown uid is a `400`, not this) |
 | 500 | internal | `error` is replaced by `internal error`; the cause is only in the log |
 
 Rejections made before the app code runs are **plain text, not JSON**, and the
@@ -97,8 +97,40 @@ The messages of the app's own errors, exactly as in the source:
 | `The symptom '<n>' already exists` | `Pick another name, or edit the existing one.` | `src/store/symptoms.rs` |
 | `The category '<n>' already exists` | `Pick another name, or edit the existing one.` | `src/store/categories.rs` |
 | `The form '<n>' already exists` | `Pick another name, or edit the existing one.` | `src/store/forms.rs` |
-| `<what> <id> does not exist` (`medicine`, `intake`, `symptom`, `category`, `form`, `deleted medicine`) | `reload the list; it may have been deleted` | `src/store/mod.rs` |
+| `that <what> does not exist` (`medicine`, `intake`, `symptom`, `category`, `form`, `deleted medicine`); `the <what> <uid> does not exist` for a uid in a URL | `reload the list; it may have been deleted` | `src/store/mod.rs`, `src/store/refs.rs` |
+| `` `<text>` is not a UUID `` | `create the item with an id made by crypto.randomUUID(), e.g. ...` | `src/store/refs.rs` (kit `client_key`) |
+| `` `<field>`: no <what> has the id <uid> `` / `` `<field>`: `<text>` is not a UUID `` | `send the id of an existing <what> as `<field>`` | `src/store/refs.rs` |
 | `the database refused the request: <sqlite text>` | `check the Storage page for the database state; if it is full or locked, retry in a moment` | `src/store/mod.rs` |
+
+## Identifiers
+
+Medicines, symptoms, categories and forms are known over the API and the sync
+feed by a **`uid`**: a UUID text such as `3f2b8c1e-5a4d-4e0a-9b1c-2d7e6f8a9b0c`,
+shown in the JSON field **`id`**. The server's integer key never leaves the
+server (it stays the primary and foreign key inside the database). Why: a device
+must be able to create these while offline, under their final id, and link
+them at once (a new medicine with a new form, a new symptom in a new category);
+an integer handed out by the server cannot do that.
+
+* Every reference between them is a uid string too: `form_id` of a medicine,
+  `category_id` of a symptom, `medicine_id` of an intake, `medicine_id` in the
+  Today doses, attention items and search results, and the lists `medicine_ids`
+  and `symptom_ids`.
+* Route parameters `{id}` of these four kinds are the uid. A malformed one is
+  `400` (`` `7` is not a UUID ``), an unknown one `404`.
+* A reference in a request body to an unknown uid is `400` and names the field
+  (`` `form_id`: no form has the id ... ``).
+* Intakes keep their own `uid` and their integer `id`; their routes accept both
+  (`/intakes/3` or `/intakes/<uid>`).
+* Create routes (`POST /medicines`, `/symptoms`, `/categories`, `/forms`) take
+  an optional `id` (a well-formed UUID the device made) and the
+  `Idempotency-Key` header. An `id` the server does not hold creates; the same
+  `Idempotency-Key` again returns the first answer and changes nothing (no
+  second row, no second stock or side effect); an `id` held by a request with
+  another key (or none) is `409` `{"code":"exists"}`. Without an `id` the
+  server makes one. They answer `{"id": "<uid>", "rev": n}` (a medicine create
+  no longer needs `now` and no longer answers the whole Medicine: the device
+  reads it from the feed).
 
 ## Shapes
 
@@ -116,10 +148,11 @@ above 0. On input `days` defaults to 127 and `dose` to 1.
 
 | Field | Type | Meaning |
 |---|---|---|
-| `id` | integer | |
+| `id` | string (uid) | |
+| `rev` | integer | revision, bumped by every write |
 | `name`, `purpose`, `strength`, `notes` | string | |
 | `form` | string | the form's name, `""` when none |
-| `form_id` | integer or null | |
+| `form_id` | string (uid) or null | |
 | `active` | boolean | switched on; off hides the schedule everywhere |
 | `as_needed` | boolean | taken only when needed (has no schedule use) |
 | `min_gap_minutes`, `max_per_day` | integer or null | the as-needed limits |
@@ -162,18 +195,18 @@ The list returns an array of these.
 ### `GET /api/mc/medicines/{id}?now=...`
 
 One medicine, same shape. `404` for an unknown or soft-deleted id:
-`{"error":"medicine 999 does not exist","remedy":"reload the list; it may have been deleted"}`.
+`{"error":"the medicine eeeeeeee-5555-4555-8555-eeeeeeeeeeee does not exist","remedy":"reload the list; it may have been deleted"}`.
 
 ### `POST /api/mc/medicines?now=...`
 
-Creates a medicine and its slots in one transaction; answers the new Medicine.
+Creates a medicine and its slots in one transaction; answers `{"id": <uid>, "rev": n}`. Body as for `PUT`, plus the optional `id` (see [Identifiers](#identifiers)); `form_id` is the form's uid. `now` is not read.
 
 ```
-$ curl -H "$AUTH" -H "Content-Type: application/json" -X POST "$B/api/mc/medicines?now=2026-11-02T09:30" -d @create.json
+$ curl -H "$AUTH" -H "Content-Type: application/json" -H "Idempotency-Key: 0b9d1a52-7c1e-4d38-8a55-1f0e2d3c4b5a" -X POST "$B/api/mc/medicines" -d @create.json
 # create.json:
-{"name":" Docs Test ","form_id":1,"stock":10,"stock_unit":"tablets","low_stock_at":3,"expires_on":"2027-01-31","symptoms":[" Cough ","cough","Sore Throat"],"slots":[{"time":"08:00"},{"time":"20:00","days":31,"dose":2}]}
+{"id":"dddddddd-4444-4444-8444-dddddddddddd","name":" Docs Test ","form_id":"aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa","stock":10,"stock_unit":"tablets","low_stock_at":3,"expires_on":"2027-01-31","symptoms":[" Cough ","cough","Sore Throat"],"slots":[{"time":"08:00"},{"time":"20:00","days":31,"dose":2}]}
 # answer:
-{"id":9,"name":"Docs Test","purpose":"","form":"Tablet","form_id":1,"strength":"","notes":"","active":true,"as_needed":false,"min_gap_minutes":null,"max_per_day":null,"stock":10.0,"stock_unit":"tablets","low_stock_at":3.0,"expires_on":"2027-01-31","opened_on":null,"shelf_life_days":null,"course_ends_on":null,"symptoms":["cough","sore throat"],"slots":[{"time":"08:00","days":127,"dose":1.0},{"time":"20:00","days":31,"dose":2.0}],"effective_expiry":"2027-01-31","freshness":"fresh","stock_level":"ok","course_over":false}
+{"id":"dddddddd-4444-4444-8444-dddddddddddd","rev":2}
 ```
 
 Validation errors (all `400`, JSON): `{"name":"  "}` gives `a medicine needs a name`;
@@ -210,7 +243,7 @@ Answers the Medicine. This is the "Add stock" button, the Cabinet stepper
 
 ### `DELETE /api/mc/medicines/{id}`
 
-**Soft delete.** Answers `{"deleted": 9}`. The medicine, schedule, symptom links
+**Soft delete.** Answers `{"deleted": "<uid>", "rev": n}`. The medicine, schedule, symptom links
 and intakes stay for 14 days and are invisible meanwhile (`GET` answers 404).
 A second delete answers 404.
 
@@ -218,7 +251,7 @@ A second delete answers 404.
 
 Brings a soft-deleted medicine back (inside the 14 days) and answers the
 Medicine. For a medicine that is not deleted, or already purged:
-`{"error":"deleted medicine 9 does not exist","remedy":"reload the list; it may have been deleted"}` (404).
+`{"error":"that deleted medicine does not exist","remedy":"reload the list; it may have been deleted"}` (404).
 The 14 days are checked by a purge that the reminder loop runs every 30
 seconds, not at restore time.
 
@@ -227,7 +260,7 @@ seconds, not at restore time.
 An **intake** is one logged dose:
 
 ```json
-{"id":3,"medicine_id":4,"medicine_name":"Amoxicillin","taken_at":"2026-11-02T08:10","planned_for":"2026-11-02T08:00","status":"skipped","dose":1.0,"note":""}
+{"id":3,"uid":"8a1f0c52-0d2e-4b7a-9c3d-5e6f7a8b9c0d","rev":1,"medicine_id":"e7eeec8f-f253-4ab1-9021-8fd9be415097","medicine_name":"Amoxicillin","taken_at":"2026-11-02T08:10","planned_for":"2026-11-02T08:00","status":"skipped","dose":1.0,"note":""}
 ```
 
 `planned_for` is the schedule slot the intake answers (Today's Take/Skip send
@@ -243,26 +276,26 @@ A non-numeric `limit` is the plain-text `400`.
 
 ```
 $ curl -H "$AUTH" "$B/api/mc/intakes?day=2026-11-02"
-[{"id":3,"medicine_id":4,"medicine_name":"Amoxicillin","taken_at":"2026-11-02T08:10","planned_for":"2026-11-02T08:00","status":"skipped","dose":1.0,"note":""},
- {"id":2,"medicine_id":3,"medicine_name":"Vitamin D","taken_at":"2026-11-02T08:05","planned_for":"2026-11-02T08:00","status":"taken","dose":1.0,"note":""},
- {"id":1,"medicine_id":2,"medicine_name":"Paracetamol","taken_at":"2026-11-02T08:00","planned_for":null,"status":"taken","dose":2.0,"note":"headache"}]
+[{"id":3,"uid":"8a1f0c52-0d2e-4b7a-9c3d-5e6f7a8b9c0d","rev":1,"medicine_id":"e7eeec8f-f253-4ab1-9021-8fd9be415097","medicine_name":"Amoxicillin","taken_at":"2026-11-02T08:10","planned_for":"2026-11-02T08:00","status":"skipped","dose":1.0,"note":""},
+ {"id":2,"medicine_id":"<uid>","medicine_name":"Vitamin D","taken_at":"2026-11-02T08:05","planned_for":"2026-11-02T08:00","status":"taken","dose":1.0,"note":""},
+ {"id":1,"medicine_id":"<uid>","medicine_name":"Paracetamol","taken_at":"2026-11-02T08:00","planned_for":null,"status":"taken","dose":2.0,"note":"headache"}]
 ```
 
 (One line per entry added here for reading; the server sends one line.)
 
 ### `POST /api/mc/intakes`
 
-Body: `medicine_id` and `taken_at` (required), `planned_for` (optional), `status`
+Body: `medicine_id` (the medicine's uid) and `taken_at` (required), `uid` (optional, made by the device), `planned_for` (optional), `status`
 (default `taken`), `dose` (default 1), `note` (default empty). A `taken` intake
 subtracts `dose` from the stock (never below 0); `skipped` does not. Answers
-`{"id": 7}`.
+`{"id": 7, "uid": "<uid>", "rev": 1}`.
 
 ```
-$ ... -X POST -d '{"medicine_id":2,"taken_at":"2026-11-02T08:00","dose":2,"note":"headache"}' "$B/api/mc/intakes"
-{"id":1}
+$ ... -X POST -d '{"medicine_id":"dddddddd-4444-4444-8444-dddddddddddd","taken_at":"2026-11-02T08:00","dose":2,"note":"headache"}' "$B/api/mc/intakes"
+{"id":1,"uid":"99999999-6666-4666-8666-999999999999","rev":1}
 ```
 
-Errors: unknown medicine `404` (`medicine 404 does not exist`); `status` other
+Errors: unknown or malformed `medicine_id` `400` naming the field; `status` other
 than `taken` or `skipped` gives `status 'late' is not known`; a `taken_at` that
 does not start with a valid date gives `'yesterday' is not a date`. See
 [behaviour that may surprise you](#behaviour-that-may-surprise-you): `dose` and
@@ -317,15 +350,15 @@ The Today screen in one call:
 ```json
 {
   "doses": [
-    {"medicine_id":4,"medicine_name":"Amoxicillin","time":"08:00","dose":1.0,"unit":"capsules","state":"overdue","intake_id":null,"minutes_until":-90}
+    {"medicine_id":"<uid>","medicine_name":"Amoxicillin","time":"08:00","dose":1.0,"unit":"capsules","state":"overdue","intake_id":null,"minutes_until":-90}
   ],
   "attention": [
-    {"medicine_id":4,"medicine_name":"Amoxicillin","kind":"course_ends_soon","detail":"The course ends on 2026-11-04."},
-    {"medicine_id":5,"medicine_name":"Cetirizine","kind":"out_of_stock","detail":"None left."},
-    {"medicine_id":1,"medicine_name":"Ibuprofen","kind":"expiring_soon","detail":"Good until 2026-11-22."},
-    {"medicine_id":2,"medicine_name":"Paracetamol","kind":"low_stock","detail":"Only 2 tablets left."}
+    {"medicine_id":"<uid>","medicine_name":"Amoxicillin","kind":"course_ends_soon","detail":"The course ends on 2026-11-04."},
+    {"medicine_id":"<uid>","medicine_name":"Cetirizine","kind":"out_of_stock","detail":"None left."},
+    {"medicine_id":"<uid>","medicine_name":"Ibuprofen","kind":"expiring_soon","detail":"Good until 2026-11-22."},
+    {"medicine_id":"<uid>","medicine_name":"Paracetamol","kind":"low_stock","detail":"Only 2 tablets left."}
   ],
-  "as_needed": [ {"id":5,"name":"Cetirizine", "...": "full Medicine objects"} ]
+  "as_needed": [ {"id":"<uid>","name":"Cetirizine", "...": "full Medicine objects"} ]
 }
 ```
 
@@ -370,62 +403,61 @@ left out). The browser app never sends an empty one.
 These three lists have the same shape of routes. Names are unique
 **case-insensitively**; a duplicate is `400` with the `already exists` message.
 Symptom names are trimmed and lowercased; category and form names are trimmed
-and keep their case. Create and update answer `{"id": n}`.
+and keep their case. Create answers `{"id": "<uid>", "rev": n}` (see [Identifiers](#identifiers)); update answers the same.
 
 ### Symptoms
 
 `GET /api/mc/symptoms` lists them by name:
 
 ```json
-{"id":3,"name":"fever","category_id":7,"category":"General","medicines":3}
+{"id":"801b3ca3-e907-4518-8bf2-f2efd644fc5c","rev":2,"name":"fever","category_id":"55aa1d38-366a-4056-9c13-eb84605de26e","category":"General","medicines":3}
 ```
 
 `medicines` counts the medicines that list the symptom (including soft-deleted
 ones; the count does not look at `deleted_at`).
 
-* `POST /api/mc/symptoms` body `{"name": "wheeze", "category_id": 8, "medicine_ids": [3]}`.
-  `category_id` and `medicine_ids` are optional. `medicine_ids` links the new
-  symptom to those medicines (ids that do not exist are skipped); the app uses
-  it to undo a delete. A `category_id` that does not exist is a `502` with
-  `the database refused the request: FOREIGN KEY constraint failed`.
+* `POST /api/mc/symptoms` body `{"id": "<uid>", "name": "wheeze", "category_id": "<uid>", "medicine_ids": ["<uid>"]}`.
+  `id`, `category_id` and `medicine_ids` are optional. `medicine_ids` links the new
+  symptom to those medicines; the app uses it to undo a delete. A uid in
+  `category_id` or `medicine_ids` that no row holds is a `400` naming the field.
 * `PUT /api/mc/symptoms/{id}` body `{"name": ..., "category_id": ...}`; replaces
   both (send `"category_id": null` for none). `medicine_ids` is ignored.
 * `DELETE /api/mc/symptoms/{id}` unlinks it from every medicine and says which:
 
 ```
-{"deleted":12,"was":{"category_id":null,"medicine_ids":[8],"name":"wheezing"}}
+{"deleted":"<uid>","rev":8,"was":{"category_id":null,"medicine_ids":["<uid>"],"name":"wheezing"}}
 ```
 
 `was` is exactly the body that `POST /api/mc/symptoms` needs to put it back
-(with a new id).
+(under a new `id`, or the old one if the device sends it).
 
 ### Categories
 
-`GET /api/mc/categories`, ordered by name: `{"id":5,"name":"Eyes","symptoms":1}`
+`GET /api/mc/categories`, ordered by name: `{"id":"<uid>","rev":2,"name":"Eyes","symptoms":1}`
 (`symptoms` is how many symptoms are filed under it).
 
-* `POST /api/mc/categories` body `{"name": "Respiratory", "symptom_ids": [13]}`;
-  `symptom_ids` (optional) files those symptoms under the new category.
+* `POST /api/mc/categories` body `{"id": "<uid>", "name": "Respiratory", "symptom_ids": ["<uid>"]}`;
+  `id` is optional; `symptom_ids` (optional) files those symptoms under the new category.
 * `PUT /api/mc/categories/{id}` body `{"name": "Breathing"}` renames.
 * `DELETE /api/mc/categories/{id}`: its symptoms stay, uncategorised.
-  `{"deleted":8,"was":{"name":"Respiratory","symptom_ids":[13]}}`.
+  `{"deleted":"<uid>","rev":8,"was":{"name":"Respiratory","symptom_ids":["<uid>"]}}`.
 
 ### Forms
 
 `GET /api/mc/forms`, ordered by name:
-`{"id":2,"name":"Capsule","unit":"capsules","medicines":3}`. The first migration
+`{"id":"<uid>","rev":1,"name":"Capsule","unit":"capsules","medicines":3}`. The first migration
 that creates the table adds nine: Tablet (tablets), Capsule (capsules), Syrup
 (ml), Drops (drops), Cream (g), Spray (doses), Inhaler (puffs), Patch (patches),
 Injection (doses).
 
-* `POST /api/mc/forms` body `{"name": "Lozenge", "unit": "lozenges", "medicine_ids": [1]}`;
-  `unit` defaults to empty and is trimmed; `medicine_ids` sets this form on those
+* `POST /api/mc/forms` body `{"id": "<uid>", "name": "Lozenge", "unit": "lozenges", "medicine_ids": ["<uid>"]}`;
+  `id` is optional; `unit` defaults to empty and is trimmed; `medicine_ids` sets this form on those
   medicines.
 * `PUT /api/mc/forms/{id}` body `{"name": ..., "unit": ...}`. The `unit` of a
   form is a suggestion for new medicines; renaming it does not change the
   `stock_unit` of medicines already saved.
 * `DELETE /api/mc/forms/{id}`: medicines keep existing and lose their form.
-  `{"deleted":1,"was":{"medicine_ids":[1,2,5,7,8],"name":"Tablet","unit":"tablets"}}`.
+  `{"deleted":"<uid>","rev":7,"was":{"medicine_ids":["<uid>"],"name":"Tablet","unit":"tablets"}}`.
 
 ## Behaviour that may surprise you
 

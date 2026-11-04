@@ -50,7 +50,10 @@ fn recreating_a_symptom_ignores_medicine_ids_that_no_longer_exist() {
     let mut conn = db();
     let tx = conn.transaction().unwrap();
     let id = symptoms::create(&tx, "x", None, &[12345]).unwrap();
-    assert_eq!(symptoms::list(&tx).unwrap()[0].id, id);
+    assert_eq!(
+        ident(&tx, Coll::Symptoms, &symptoms::list(&tx).unwrap()[0].uid),
+        id
+    );
     assert_eq!(symptoms::list(&tx).unwrap()[0].medicines, 0);
 }
 
@@ -112,8 +115,9 @@ fn forms_update_conflicts_and_unknown_ids() {
     let tx = conn.transaction().unwrap();
     let all = forms::list(&tx).unwrap();
     let (a, b) = (&all[0], &all[1]);
-    assert!(forms::update(&tx, a.id, &b.name.to_uppercase(), "u").is_err());
-    forms::update(&tx, a.id, &a.name, "new unit").unwrap();
+    let a_id = ident(&tx, Coll::Forms, &a.uid);
+    assert!(forms::update(&tx, a_id, &b.name.to_uppercase(), "u").is_err());
+    forms::update(&tx, a_id, &a.name, "new unit").unwrap();
     assert!(forms::update(&tx, 9999, "x", "y").is_err());
     assert!(forms::delete(&tx, 9999).is_err());
 }
@@ -128,7 +132,7 @@ fn form_list_counts_only_live_medicines_by_form() {
         .find(|f| f.name == "Tablet")
         .unwrap();
     let mut input = medicine("A", 1.0);
-    input.form_id = Some(tablet.id);
+    input.form_id = Some(ident(&tx, Coll::Forms, &tablet.uid));
     medicines::insert(&tx, &input).unwrap();
     medicines::insert(&tx, &input).unwrap();
     let after = forms::list(&tx)

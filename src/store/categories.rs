@@ -4,19 +4,23 @@ use chassis::Error;
 use chassis::storage::rusqlite::{Connection, Transaction, params};
 use serde::Serialize;
 
+use super::refs::{self, Keys};
 use super::sync_log::{self, Coll};
 use super::{db_err, not_found};
 use crate::domain::limits;
+use crate::schema::UID_SQL;
 
 #[derive(Debug, Serialize)]
 pub struct Category {
-    pub id: i64,
+    /// The public identifier; the internal integer id is never read back.
+    #[serde(rename = "id")]
+    pub uid: String,
     pub rev: u64,
     pub name: String,
     pub symptoms: i64,
 }
 
-const LIST_SQL: &str = "SELECT c.id, c.name, COUNT(s.id), c.rev FROM symptom_categories c
+const LIST_SQL: &str = "SELECT c.id, c.name, COUNT(s.id), c.rev, c.uid FROM symptom_categories c
      LEFT JOIN symptoms s ON s.category_id = c.id
      WHERE (?1 IS NULL OR c.id = ?1)
      GROUP BY c.id ORDER BY c.name COLLATE NOCASE";
@@ -26,10 +30,10 @@ fn query(conn: &Connection, only: Option<i64>) -> Result<Vec<Category>, Error> {
     let rows = stmt
         .query_map([only], |r| {
             Ok(Category {
-                id: r.get(0)?,
                 name: r.get(1)?,
                 symptoms: r.get(2)?,
                 rev: sync_log::read_rev(r, 3)?,
+                uid: r.get(4)?,
             })
         })
         .map_err(db_err)?;
@@ -68,10 +72,25 @@ fn name_taken(e: chassis::storage::rusqlite::Error, name: &str) -> Error {
 
 /// Create a category. `symptom_ids` files those symptoms under it, which is how an
 /// undo of a delete brings the old grouping back.
+#[cfg(any(test, debug_assertions))]
 pub fn create(tx: &Transaction, name: &str, symptom_ids: &[i64]) -> Result<i64, Error> {
+    create_keyed(tx, name, symptom_ids, &Keys::default())
+}
+
+/// [`create`] under the `uid` the browser made and the `Idempotency-Key` of the request.
+pub fn create_keyed(
+    tx: &Transaction,
+    name: &str,
+    symptom_ids: &[i64],
+    keys: &Keys,
+) -> Result<i64, Error> {
     limits::list_len("the symptom list", symptom_ids.len())?;
     let name = clean_name(name)?;
-    tx.execute("INSERT INTO symptom_categories (name) VALUES (?1)", [&name])
+    let sql = format!(
+        "INSERT INTO symptom_categories (name, uid, idempotency_key)
+         VALUES (?1, COALESCE(?2, {UID_SQL}), ?3)"
+    );
+    tx.execute(&sql, params![name, keys.uid, keys.idempotency])
         .map_err(|e| name_taken(e, &name))?;
     let id = tx.last_insert_rowid();
     sync_log::created(tx, Coll::Categories, id)?;
@@ -120,7 +139,8 @@ pub fn rename(tx: &Transaction, id: i64, name: &str) -> Result<(), Error> {
 #[derive(Debug, Serialize)]
 pub struct DeletedCategory {
     pub name: String,
-    pub symptom_ids: Vec<i64>,
+    /// The `uid`s of the symptoms it held.
+    pub symptom_ids: Vec<String>,
 }
 
 /// Its symptoms stay; they just lose the category. The result lists them.
@@ -145,5 +165,8 @@ pub fn delete(tx: &Transaction, id: i64) -> Result<DeletedCategory, Error> {
     tx.execute("DELETE FROM symptom_categories WHERE id = ?1", [id])
         .map_err(db_err)?;
     sync_log::touch_all(tx, Coll::Symptoms, &symptom_ids)?;
-    Ok(DeletedCategory { name, symptom_ids })
+    Ok(DeletedCategory {
+        name,
+        symptom_ids: refs::uids_of(tx, Coll::Symptoms, &symptom_ids)?,
+    })
 }

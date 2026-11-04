@@ -205,6 +205,50 @@ CREATE INDEX intakes_by_medicine ON intakes (medicine_id, taken_at);
 CREATE UNIQUE INDEX intakes_by_uid ON intakes (uid);
 ";
 
+/// Offline creation: medicines, symptoms, categories and forms get a public
+/// `uid` (UUID text), the only identifier the API and the sync feed show; the
+/// integer `id` stays the internal key and foreign key. `idempotency_key`
+/// remembers the `Idempotency-Key` a row was created with, so a replayed
+/// create is answered, not repeated. Existing rows get a version-4-shaped
+/// `uid` from `randomblob`, like V8 did for intakes. (The change log is
+/// re-keyed by a code step right after this one, see `store::sync_rekey`.)
+const V10: &str = concat!(
+    "
+ALTER TABLE medicines ADD COLUMN uid TEXT;
+ALTER TABLE medicines ADD COLUMN idempotency_key TEXT;
+ALTER TABLE symptoms ADD COLUMN uid TEXT;
+ALTER TABLE symptoms ADD COLUMN idempotency_key TEXT;
+ALTER TABLE symptom_categories ADD COLUMN uid TEXT;
+ALTER TABLE symptom_categories ADD COLUMN idempotency_key TEXT;
+ALTER TABLE medicine_forms ADD COLUMN uid TEXT;
+ALTER TABLE medicine_forms ADD COLUMN idempotency_key TEXT;
+UPDATE medicines SET uid = ",
+    uid_sql!(),
+    ";
+UPDATE symptoms SET uid = ",
+    uid_sql!(),
+    ";
+UPDATE symptom_categories SET uid = ",
+    uid_sql!(),
+    ";
+UPDATE medicine_forms SET uid = ",
+    uid_sql!(),
+    ";
+CREATE UNIQUE INDEX medicines_by_uid ON medicines (uid);
+CREATE UNIQUE INDEX symptoms_by_uid ON symptoms (uid);
+CREATE UNIQUE INDEX categories_by_uid ON symptom_categories (uid);
+CREATE UNIQUE INDEX forms_by_uid ON medicine_forms (uid);
+CREATE UNIQUE INDEX medicines_by_idempotency ON medicines (idempotency_key)
+    WHERE idempotency_key IS NOT NULL;
+CREATE UNIQUE INDEX symptoms_by_idempotency ON symptoms (idempotency_key)
+    WHERE idempotency_key IS NOT NULL;
+CREATE UNIQUE INDEX categories_by_idempotency ON symptom_categories (idempotency_key)
+    WHERE idempotency_key IS NOT NULL;
+CREATE UNIQUE INDEX forms_by_idempotency ON medicine_forms (idempotency_key)
+    WHERE idempotency_key IS NOT NULL;
+"
+);
+
 pub fn migrations() -> Vec<Migration> {
     vec![
         Migration::sql(V1),
@@ -216,10 +260,13 @@ pub fn migrations() -> Vec<Migration> {
         Migration::sql(V7),
         Migration::sql(V8),
         Migration::sql(V9),
+        Migration::sql(V10),
+        // Not SQL: the change log was keyed by integer ids until now.
+        Migration::code(crate::store::sync_rekey::rekey_to_uids),
     ]
 }
 
 /// Every migration's SQL, in order, for tests that run the stores against an
 /// in-memory database.
 #[cfg(test)]
-pub const ALL_SQL: [&str; 9] = [V1, V2, V3, V4, V5, V6, V7, V8, V9];
+pub const ALL_SQL: [&str; 10] = [V1, V2, V3, V4, V5, V6, V7, V8, V9, V10];

@@ -19,21 +19,20 @@ change-log entry written in the same transaction as every write
 
 | collection | key | body served |
 |---|---|---|
-| `medicines` | `id` (as text) | the medicine with its slots |
+| `medicines` | `id` (the uid, UUID text) | the medicine with its slots |
 | `intakes` | `uid` (UUID text) | one logged dose |
-| `symptoms` | `id` | symptom with its category and medicine links |
-| `categories` | `id` | category |
-| `forms` | `id` | form (tablet, drops, ...) |
+| `symptoms` | `id` (uid) | symptom with its category and medicine links |
+| `categories` | `id` (uid) | category |
+| `forms` | `id` (uid) | form (tablet, drops, ...) |
 
 Registered with `app.sync_collection(SyncCollection::new("medicines").key("id")
 .rev("rev").routes("/api/mc/medicines", "/api/mc/medicines/:id"))` and one
 `app.sync_load(...)` adapter that returns the current JSON body per key.
 
-Only **intakes** are created on the device (Take / Skip offline): the page makes
-the `uid` with `crypto.randomUUID()`, posts it, the server accepts a well-formed
-UUID it does not hold yet (`client_key`, `check_create`). Integer ids stay for
-everything else; creating a medicine, symptom, category or form needs a
-connection. Editing and deleting existing ones queue with `If-Match`.
+Intakes, medicines, symptoms, categories and forms are created on the device
+(2026-11-04, Kenny): the page makes the uid with `crypto.randomUUID()`, posts it,
+the server accepts a well-formed UUID it does not hold yet (`client_key`,
+`check_create`). The integer id is internal only (migration V10 added `uid`). Editing and deleting existing ones queue with `If-Match`.
 
 ## Milestones (no release before Kenny asks)
 

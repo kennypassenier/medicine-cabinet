@@ -1,5 +1,6 @@
 //! The JSON API the browser app talks to (behind the admin login).
 
+mod create;
 mod forms;
 mod guard;
 mod intake_create;

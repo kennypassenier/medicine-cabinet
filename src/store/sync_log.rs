@@ -53,12 +53,20 @@ impl Coll {
         }
     }
 
-    /// SQL for the item's key as text: the id, or the `uid` of an intake.
-    pub fn key_expr(self) -> &'static str {
+    /// What one item is called in a message.
+    pub fn singular(self) -> &'static str {
         match self {
-            Coll::Intakes => "uid",
-            _ => "CAST(id AS TEXT)",
+            Coll::Medicines => "medicine",
+            Coll::Intakes => "intake",
+            Coll::Symptoms => "symptom",
+            Coll::Categories => "category",
+            Coll::Forms => "form",
         }
+    }
+
+    /// SQL for the item's key: every collection is keyed by its public `uid`.
+    pub fn key_expr(self) -> &'static str {
+        "uid"
     }
 
     /// SQL that is true while the row must not be served.
@@ -131,6 +139,18 @@ pub fn current_rev(tx: &Transaction, coll: Coll, id: i64) -> Result<Option<u64>,
         .optional()
         .map_err(db_err)?;
     Ok(rev.map(|r| r as u64))
+}
+
+/// The sync key (the public `uid`) of a row, or `None` when there is no such row.
+pub fn key_of(tx: &Transaction, coll: Coll, id: i64) -> Result<Option<String>, Error> {
+    let sql = format!(
+        "SELECT {} FROM {} WHERE id = ?1",
+        coll.key_expr(),
+        coll.table()
+    );
+    tx.query_row(&sql, [id], |r| r.get(0))
+        .optional()
+        .map_err(db_err)
 }
 
 /// The revision of the last change recorded for a key: the answer to a

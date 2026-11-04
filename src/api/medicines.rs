@@ -8,13 +8,13 @@ use chassis::{Error, IfMatch, Revisioned};
 use serde::Deserialize;
 
 use super::guard::guarded;
-use super::{ApiResult, Clock};
+use super::{ApiResult, Clock, create};
 use crate::domain::medicine::MedicineInput;
 use crate::domain::schedule::SlotInput;
 use crate::store::medicines::{self, Medicine};
 use crate::store::sync_log::Coll;
-use crate::store::{slots, stock};
-use chassis::{ApiJson, ApiPath, ApiQuery};
+use crate::store::{refs, slots, stock};
+use chassis::{ApiJson, ApiPath, ApiQuery, IdempotencyKey};
 
 /// A medicine together with its repeating schedule.
 #[derive(Debug, Deserialize)]
@@ -23,6 +23,10 @@ pub struct MedicineBody {
     medicine: MedicineInput,
     #[serde(default)]
     slots: Vec<SlotInput>,
+    /// Only on create: the `id` the browser made (a UUID); absent: the server makes one.
+    id: Option<String>,
+    /// The `id` of one of the managed forms.
+    form_id: Option<String>,
 }
 
 pub async fn list(
@@ -37,87 +41,103 @@ pub async fn list(
 
 pub async fn show(
     State(db): State<AppDb>,
-    ApiPath(id): ApiPath<i64>,
+    ApiPath(reference): ApiPath<String>,
     ApiQuery(c): ApiQuery<Clock>,
 ) -> ApiResult<Medicine> {
     let today = c.date()?;
-    db.read(move |conn| medicines::get(conn, id, today))
-        .await
-        .map(Json)
+    db.read(move |conn| {
+        let id = refs::path(conn, Coll::Medicines, &reference)?;
+        medicines::get(conn, id, today)
+    })
+    .await
+    .map(Json)
 }
 
+/// Create a medicine, possibly under an `id` made offline. Answers `{id, rev}`;
+/// the page reads the medicine itself from the feed.
 pub async fn create(
     State(db): State<AppDb>,
-    ApiQuery(c): ApiQuery<Clock>,
+    key: IdempotencyKey,
     ApiJson(body): ApiJson<MedicineBody>,
-) -> ApiResult<Medicine> {
-    let today = c.date()?;
-    let input = body.medicine.validated()?;
+) -> Result<Response, Error> {
+    let uid = create::client_uid(body.id.as_deref())?;
+    let mut input = body.medicine.validated()?;
     let slot_list = validate_slots(body.slots)?;
-    let id = db
+    let form = body.form_id;
+    let outcome = db
         .write(move |tx| {
-            let id = medicines::insert(tx, &input)?;
-            slots::replace(tx, id, &slot_list)?;
-            Ok(id)
+            create::keyed(
+                tx,
+                Coll::Medicines,
+                uid.as_deref(),
+                key.get(),
+                |tx, keys| {
+                    input.form_id = refs::field_opt(tx, Coll::Forms, "form_id", form.as_deref())?;
+                    let id = medicines::insert_keyed(tx, &input, keys)?;
+                    slots::replace(tx, id, &slot_list)?;
+                    Ok(id)
+                },
+            )
         })
         .await?;
-    db.read(move |conn| medicines::get(conn, id, today))
-        .await
-        .map(Json)
+    Ok(create::respond(outcome))
 }
 
 pub async fn replace(
     State(db): State<AppDb>,
-    ApiPath(id): ApiPath<i64>,
+    ApiPath(reference): ApiPath<String>,
     if_match: IfMatch,
     ApiQuery(c): ApiQuery<Clock>,
     ApiJson(body): ApiJson<MedicineBody>,
 ) -> Result<Response, Error> {
     let today = c.date()?;
-    let input = body.medicine.validated()?;
+    let mut input = body.medicine.validated()?;
     let slot_list = validate_slots(body.slots)?;
-    let done = guarded(&db, if_match, Coll::Medicines, id, move |tx| {
+    let form = body.form_id;
+    let done = guarded(&db, if_match, Coll::Medicines, reference, move |tx, id| {
+        input.form_id = refs::field_opt(tx, Coll::Forms, "form_id", form.as_deref())?;
         medicines::update(tx, id, &input)?;
         slots::replace(tx, id, &slot_list)
     })
     .await?;
     match done {
         Err(conflict) => Ok(conflict.into_response()),
-        Ok((rev, ())) => {
-            let m = db.read(move |conn| medicines::get(conn, id, today)).await?;
-            Ok(Revisioned::new(rev, m).into_response())
+        Ok(done) => {
+            let m = db
+                .read(move |conn| medicines::get(conn, done.id, today))
+                .await?;
+            Ok(Revisioned::new(done.rev, m).into_response())
         }
     }
 }
 
 pub async fn remove(
     State(db): State<AppDb>,
-    ApiPath(id): ApiPath<i64>,
+    ApiPath(reference): ApiPath<String>,
     if_match: IfMatch,
 ) -> Result<Response, Error> {
-    let done = guarded(&db, if_match, Coll::Medicines, id, move |tx| {
-        medicines::delete(tx, id)
-    })
-    .await?;
+    let done = guarded(&db, if_match, Coll::Medicines, reference, medicines::delete).await?;
     Ok(match done {
         Err(conflict) => conflict.into_response(),
-        Ok((rev, ())) => {
-            Revisioned::new(rev, serde_json::json!({ "deleted": id, "rev": rev })).into_response()
-        }
+        Ok(d) => Revisioned::new(d.rev, serde_json::json!({ "deleted": d.key, "rev": d.rev }))
+            .into_response(),
     })
 }
 
 /// Bring back a medicine deleted in the last two weeks.
 pub async fn restore(
     State(db): State<AppDb>,
-    ApiPath(id): ApiPath<i64>,
+    ApiPath(reference): ApiPath<String>,
     ApiQuery(c): ApiQuery<Clock>,
 ) -> ApiResult<Medicine> {
     let today = c.date()?;
-    db.write(move |tx| medicines::restore(tx, id)).await?;
-    db.read(move |conn| medicines::get(conn, id, today))
-        .await
-        .map(Json)
+    db.write(move |tx| {
+        let id = refs::path(tx, Coll::Medicines, &reference)?;
+        medicines::restore(tx, id)?;
+        medicines::get(tx, id, today)
+    })
+    .await
+    .map(Json)
 }
 
 #[derive(Debug, Deserialize)]
@@ -127,16 +147,18 @@ pub struct ActiveBody {
 
 pub async fn set_active(
     State(db): State<AppDb>,
-    ApiPath(id): ApiPath<i64>,
+    ApiPath(reference): ApiPath<String>,
     ApiQuery(c): ApiQuery<Clock>,
     ApiJson(body): ApiJson<ActiveBody>,
 ) -> ApiResult<Medicine> {
     let today = c.date()?;
-    db.write(move |tx| medicines::set_active(tx, id, body.active))
-        .await?;
-    db.read(move |conn| medicines::get(conn, id, today))
-        .await
-        .map(Json)
+    db.write(move |tx| {
+        let id = refs::path(tx, Coll::Medicines, &reference)?;
+        medicines::set_active(tx, id, body.active)?;
+        medicines::get(tx, id, today)
+    })
+    .await
+    .map(Json)
 }
 
 #[derive(Debug, Deserialize)]
@@ -147,16 +169,18 @@ pub struct StockBody {
 
 pub async fn add_stock(
     State(db): State<AppDb>,
-    ApiPath(id): ApiPath<i64>,
+    ApiPath(reference): ApiPath<String>,
     ApiQuery(c): ApiQuery<Clock>,
     ApiJson(body): ApiJson<StockBody>,
 ) -> ApiResult<Medicine> {
     let today = c.date()?;
-    db.write(move |tx| stock::adjust_stock(tx, id, body.delta))
-        .await?;
-    db.read(move |conn| medicines::get(conn, id, today))
-        .await
-        .map(Json)
+    db.write(move |tx| {
+        let id = refs::path(tx, Coll::Medicines, &reference)?;
+        stock::adjust_stock(tx, id, body.delta)?;
+        medicines::get(tx, id, today)
+    })
+    .await
+    .map(Json)
 }
 
 fn validate_slots(raw: Vec<SlotInput>) -> Result<Vec<SlotInput>, chassis::Error> {

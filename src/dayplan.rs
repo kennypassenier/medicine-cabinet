@@ -20,6 +20,7 @@ pub fn day_slots(all: &[Medicine], logged: &[Intake], today: Date) -> Vec<PlanSl
                 .map(|i| (i.id, i.status.clone()));
             out.push(PlanSlot {
                 medicine_id: m.id,
+                medicine_uid: m.uid.clone(),
                 medicine_name: m.name.clone(),
                 minute: parse_minutes(&s.time).unwrap_or(0),
                 time: s.time.clone(),

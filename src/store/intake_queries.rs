@@ -16,7 +16,11 @@ pub struct Intake {
     pub uid: String,
     pub rev: u64,
     /// `None` once the medicine was purged: the dose stays as history.
+    #[serde(skip)]
     pub medicine_id: Option<i64>,
+    /// The medicine's public identifier, serialized as `medicine_id`.
+    #[serde(rename = "medicine_id")]
+    pub medicine_uid: Option<String>,
     /// The medicine's name, or the one stored on the intake after a purge.
     pub medicine_name: String,
     pub taken_at: String,
@@ -29,7 +33,7 @@ pub struct Intake {
 /// A LEFT JOIN: an intake whose medicine was purged has no row to join and
 /// shows its stored name.
 const SELECT: &str = "SELECT i.id, i.medicine_id, COALESCE(m.name, i.medicine_name, ''),
-            i.taken_at, i.planned_for, i.status, i.dose_hundredths, i.note, i.uid, i.rev
+            i.taken_at, i.planned_for, i.status, i.dose_hundredths, i.note, i.uid, i.rev, m.uid
      FROM intakes i LEFT JOIN medicines m ON m.id = i.medicine_id";
 
 fn read_row(r: &Row) -> chassis::storage::rusqlite::Result<Intake> {
@@ -44,6 +48,7 @@ fn read_row(r: &Row) -> chassis::storage::rusqlite::Result<Intake> {
         note: r.get(7)?,
         uid: r.get(8)?,
         rev: super::sync_log::read_rev(r, 9)?,
+        medicine_uid: r.get(10)?,
     })
 }
 

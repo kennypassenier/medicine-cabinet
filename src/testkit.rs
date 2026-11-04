@@ -10,11 +10,12 @@ use crate::store::medicines::Medicine;
 pub fn medicine(id: i64, name: &str) -> Medicine {
     Medicine {
         id,
+        uid: format!("00000000-0000-4000-8000-{id:012}"),
         rev: 1,
         name: name.into(),
         purpose: String::new(),
         form: String::new(),
-        form_id: None,
+        form_uid: None,
         strength: String::new(),
         notes: String::new(),
         active: true,

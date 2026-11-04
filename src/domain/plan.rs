@@ -6,6 +6,8 @@ use serde::Serialize;
 #[derive(Debug, Clone)]
 pub struct PlanSlot {
     pub medicine_id: i64,
+    /// The medicine's public identifier.
+    pub medicine_uid: String,
     pub medicine_name: String,
     /// Minutes since midnight.
     pub minute: u32,
@@ -33,7 +35,11 @@ pub const DUE_WINDOW_MINUTES: i64 = 60;
 
 #[derive(Debug, Serialize)]
 pub struct PlannedDose {
+    #[serde(skip)]
     pub medicine_id: i64,
+    /// The medicine's public identifier, serialized as `medicine_id`.
+    #[serde(rename = "medicine_id")]
+    pub medicine_uid: String,
     pub medicine_name: String,
     pub time: String,
     pub dose: f64,
@@ -70,6 +76,7 @@ pub fn plan(mut slots: Vec<PlanSlot>, now_minute: u32) -> Vec<PlannedDose> {
             intake_id: s.answered.as_ref().map(|(id, _)| *id),
             minutes_until: i64::from(s.minute) - i64::from(now_minute),
             medicine_id: s.medicine_id,
+            medicine_uid: s.medicine_uid,
             medicine_name: s.medicine_name,
             time: s.time,
             dose: s.dose,
@@ -85,6 +92,7 @@ mod tests {
     fn slot(minute: u32, answered: Option<&str>) -> PlanSlot {
         PlanSlot {
             medicine_id: 1,
+            medicine_uid: "uid-1".into(),
             medicine_name: "Vitamin D".into(),
             minute,
             time: format!("{:02}:{:02}", minute / 60, minute % 60),
