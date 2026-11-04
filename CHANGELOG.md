@@ -6,6 +6,8 @@ carries a **Migration** section saying what an operator must do.
 
 ## [Unreleased]
 
+## [2.0.1] - 2026-11-04
+
 ### Changed
 - Built on chassis-rs 4.8.0 and kp-themes 12.7.0. The app's own workarounds are
   gone: toolbar chips wrap by the package's default, the inline add rows are the
