@@ -133,27 +133,37 @@ tick (`mod.rs`):
 
 1. Converts `Utc::now()` to `MEDICINE_CABINET_TIMEZONE`: the local date, the
    minute of the day, and `digest_due` = local hour >= the digest hour.
-2. Opens **one write transaction** (`collect`): lists the medicines, today's
-   intakes (limit 500) and what `reminder_log` already holds for today;
-   builds the day plan (`dayplan::day_slots` + `domain::plan::plan`).
+2. Opens one write transaction (`collect`, in `collect.rs`): lists the
+   medicines, today's intakes (limit 500) and what `reminder_log` already holds
+   for today; builds the day plan (`dayplan::day_slots` + `domain::plan::plan`).
+   It also reads **yesterday's** plan (same medicines, yesterday's date, the
+   intakes of both days, since a dose can be logged after midnight) with "now"
+   shifted by 1440 minutes, so a 23:30 dose that is still unlogged gets its
+   `dose.overdue` nudge after midnight; only `dose.overdue` carries over, and
+   its sent key uses yesterday's date.
 3. Asks the pure functions in `due.rs` what is due: `dose_reminders` (state
    `Due` gives `dose.due`; state `Overdue` and not more than 180 minutes late
    gives `dose.overdue`) and, when `digest_due`, `attention_reminders`
-   (`cabinet.attention`, one per attention item).
-4. For each candidate runs `reminder_log::mark` (an `INSERT OR IGNORE` on the
-   primary key); only the ones that actually inserted are kept. That is the
-   dedup, and it is also why two overlapping ticks cannot both send.
-5. Prunes log rows older than 7 days and purges medicines deleted more than 14
+   (`cabinet.attention`, one per attention item, once per day). Nothing is
+   marked in this step.
+4. Prunes log rows older than 7 days and purges medicines deleted more than 14
    days ago, still inside the transaction.
-6. After the commit, `notifier.emit(kind, version, text)` for each kept
-   reminder. With no notify target the kit only logs the event.
+5. For each reminder, in order: `notifier.emit(kind, version, text)`, then
+   `reminder_log::mark` (an `INSERT OR IGNORE` on the primary key) in its own
+   write. Marking comes **after** emit, so a crash in between re-sends that
+   reminder on the next tick (at most one duplicate) instead of losing it.
+   Limit: the kit's `emit` is fire and forget and returns no delivery result
+   (a full queue drops the event with a warning), so "sent" means "emit
+   returned", not "kyu received it". With no notify target the kit only logs
+   the event.
 
 Errors: a tick that fails prints `reminders: this tick failed: ...` to stderr
 and the loop goes on; an error whose message contains `not open yet` (the
 database is still starting) is ignored silently. Proven by the unit tests in
 `reminders/due.rs`: `a_due_dose_is_reminded_once`,
 `upcoming_taken_and_ancient_doses_stay_quiet`,
-`a_recently_overdue_dose_gets_one_nudge`, `the_digest_skips_what_was_sent`;
+`a_recently_overdue_dose_gets_one_nudge`, `the_digest_skips_what_was_sent`, and for the after-midnight nudge the tests in
+`reminders/collect/tests.rs`;
 and by running the binary twice on one state (the second run sent nothing).
 
 ## The calendar loop (`src/agenda/`)
