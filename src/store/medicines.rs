@@ -6,6 +6,7 @@ use chassis::storage::rusqlite::{Transaction, params};
 use super::sync_log::{self, Coll};
 use super::{db_err, not_found, symptoms};
 use crate::domain::medicine::MedicineInput;
+use crate::domain::quantity;
 
 pub use super::medicine_view::{Medicine, get, list};
 
@@ -22,8 +23,8 @@ pub fn insert(tx: &Transaction, m: &MedicineInput) -> Result<i64, Error> {
     ensure_form(tx, m.form_id)?;
     tx.execute(
         "INSERT INTO medicines (name, purpose, form_id, strength, notes, active, as_needed,
-            min_gap_minutes, max_per_day, stock, stock_unit, low_stock_at,
-            expires_on, opened_on, shelf_life_days, course_ends_on)
+            min_gap_minutes, max_per_day, stock_hundredths, stock_unit,
+            low_stock_at_hundredths, expires_on, opened_on, shelf_life_days, course_ends_on)
          VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16)",
         params![
             m.name,
@@ -35,9 +36,9 @@ pub fn insert(tx: &Transaction, m: &MedicineInput) -> Result<i64, Error> {
             m.as_needed,
             m.min_gap_minutes,
             m.max_per_day,
-            m.stock,
+            quantity::to_hundredths(m.stock),
             m.stock_unit,
-            m.low_stock_at,
+            m.low_stock_at.map(quantity::to_hundredths),
             m.expires_on,
             m.opened_on,
             m.shelf_life_days,
@@ -64,8 +65,8 @@ pub fn update(tx: &Transaction, id: i64, m: &MedicineInput) -> Result<(), Error>
     let changed = tx
         .execute(
             "UPDATE medicines SET name=?2, purpose=?3, form_id=?4, strength=?5, notes=?6,
-                active=?7, as_needed=?8, min_gap_minutes=?9, max_per_day=?10, stock=?11,
-                stock_unit=?12, low_stock_at=?13, expires_on=?14, opened_on=?15,
+                active=?7, as_needed=?8, min_gap_minutes=?9, max_per_day=?10,
+                stock_hundredths=?11, stock_unit=?12, low_stock_at_hundredths=?13, expires_on=?14, opened_on=?15,
                 shelf_life_days=?16, course_ends_on=?17 WHERE id=?1 AND deleted_at IS NULL",
             params![
                 id,
@@ -78,9 +79,9 @@ pub fn update(tx: &Transaction, id: i64, m: &MedicineInput) -> Result<(), Error>
                 m.as_needed,
                 m.min_gap_minutes,
                 m.max_per_day,
-                m.stock,
+                quantity::to_hundredths(m.stock),
                 m.stock_unit,
-                m.low_stock_at,
+                m.low_stock_at.map(quantity::to_hundredths),
                 m.expires_on,
                 m.opened_on,
                 m.shelf_life_days,
@@ -105,6 +106,12 @@ fn record_update(
 ) -> Result<(), Error> {
     sync_log::touch(tx, Coll::Medicines, id)?;
     if old_name != m.name {
+        // The logged doses carry a snapshot of the name; keep it current.
+        tx.execute(
+            "UPDATE intakes SET medicine_name = ?2 WHERE medicine_id = ?1",
+            params![id, m.name],
+        )
+        .map_err(db_err)?;
         sync_log::touch_intakes_of(tx, id)?;
     }
     if old_form != m.form_id {
@@ -164,13 +171,41 @@ pub fn restore(tx: &Transaction, id: i64) -> Result<(), Error> {
 /// How long a deleted medicine can still be restored.
 pub const PURGE_AFTER_DAYS: i64 = 14;
 
-/// Remove what has been deleted for longer than the restore window.
+/// Remove what has been deleted for longer than the restore window. The
+/// medicine's logged doses stay: their `medicine_id` becomes NULL (the schema's
+/// `ON DELETE SET NULL`) and they keep the name stored on them. They were
+/// hidden from the sync feed while the medicine was soft-deleted, so they are
+/// recorded again as upserts (never as deletes) now that they show for good.
 pub fn purge_deleted(tx: &Transaction) -> Result<usize, Error> {
-    tx.execute(
-        "DELETE FROM medicines WHERE deleted_at IS NOT NULL AND deleted_at < datetime('now', ?1)",
-        [format!("-{PURGE_AFTER_DAYS} days")],
-    )
-    .map_err(db_err)
+    let window = format!("-{PURGE_AFTER_DAYS} days");
+    let mut orphaned = Vec::new();
+    for id in expired_ids(tx, &window)? {
+        orphaned.extend(sync_log::ids(
+            tx,
+            "SELECT id FROM intakes WHERE medicine_id = ?1",
+            id,
+        )?);
+    }
+    let purged = tx
+        .execute(
+            "DELETE FROM medicines WHERE deleted_at IS NOT NULL AND deleted_at < datetime('now', ?1)",
+            [window],
+        )
+        .map_err(db_err)?;
+    sync_log::touch_all(tx, Coll::Intakes, &orphaned)?;
+    Ok(purged)
+}
+
+fn expired_ids(tx: &Transaction, window: &str) -> Result<Vec<i64>, Error> {
+    let mut stmt = tx
+        .prepare(
+            "SELECT id FROM medicines WHERE deleted_at IS NOT NULL AND deleted_at < datetime('now', ?1)",
+        )
+        .map_err(db_err)?;
+    let rows = stmt
+        .query_map([window], |r| r.get::<_, i64>(0))
+        .map_err(db_err)?;
+    rows.collect::<Result<_, _>>().map_err(db_err)
 }
 
 /// Switching a medicine off or on is the whole "pause this schedule" story:

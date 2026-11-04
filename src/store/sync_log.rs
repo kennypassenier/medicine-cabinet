@@ -65,10 +65,11 @@ impl Coll {
     pub fn gone_expr(self) -> &'static str {
         match self {
             Coll::Medicines => "deleted_at IS NOT NULL",
-            // An intake of a deleted medicine is hidden with it.
+            // An intake of a soft-deleted medicine is hidden with it; one whose
+            // medicine was purged (no `medicine_id`) is history and stays.
             Coll::Intakes => {
                 "COALESCE((SELECT m.deleted_at IS NOT NULL FROM medicines m \
-                 WHERE m.id = intakes.medicine_id), 1)"
+                 WHERE m.id = intakes.medicine_id), 0)"
             }
             _ => "0",
         }

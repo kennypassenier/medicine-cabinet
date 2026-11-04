@@ -7,6 +7,7 @@ use serde::Serialize;
 
 use super::db_err;
 use crate::domain::date::{Date, parse_minutes};
+use crate::domain::quantity;
 
 #[derive(Debug, Serialize)]
 pub struct Intake {
@@ -14,7 +15,9 @@ pub struct Intake {
     /// Stable key the browser can make while offline.
     pub uid: String,
     pub rev: u64,
-    pub medicine_id: i64,
+    /// `None` once the medicine was purged: the dose stays as history.
+    pub medicine_id: Option<i64>,
+    /// The medicine's name, or the one stored on the intake after a purge.
     pub medicine_name: String,
     pub taken_at: String,
     pub planned_for: Option<String>,
@@ -23,9 +26,11 @@ pub struct Intake {
     pub note: String,
 }
 
-const SELECT: &str = "SELECT i.id, i.medicine_id, m.name, i.taken_at, i.planned_for, i.status,
-            i.dose, i.note, i.uid, i.rev
-     FROM intakes i JOIN medicines m ON m.id = i.medicine_id";
+/// A LEFT JOIN: an intake whose medicine was purged has no row to join and
+/// shows its stored name.
+const SELECT: &str = "SELECT i.id, i.medicine_id, COALESCE(m.name, i.medicine_name, ''),
+            i.taken_at, i.planned_for, i.status, i.dose_hundredths, i.note, i.uid, i.rev
+     FROM intakes i LEFT JOIN medicines m ON m.id = i.medicine_id";
 
 fn read_row(r: &Row) -> chassis::storage::rusqlite::Result<Intake> {
     Ok(Intake {
@@ -35,7 +40,7 @@ fn read_row(r: &Row) -> chassis::storage::rusqlite::Result<Intake> {
         taken_at: r.get(3)?,
         planned_for: r.get(4)?,
         status: r.get(5)?,
-        dose: r.get(6)?,
+        dose: quantity::to_decimal(r.get(6)?),
         note: r.get(7)?,
         uid: r.get(8)?,
         rev: super::sync_log::read_rev(r, 9)?,

@@ -132,7 +132,8 @@ async function remove(p, i) {
     reportError(`Could not remove ${i.medicine_name}.`, e);
     return load(p);
   }
-  undoable(`Removed ${i.medicine_name} at ${i.taken_at.slice(11, 16)}.${i.status === "taken" ? " Stock restored." : ""}`, { undo: () => relog(i), failed: `Could not log ${i.medicine_name} again.`, after: () => void load(p) });
+  // A dose whose medicine was purged cannot be logged again (it has no medicine to log against).
+  if (i.medicine_id != null) undoable(`Removed ${i.medicine_name} at ${i.taken_at.slice(11, 16)}.${i.status === "taken" ? " Stock restored." : ""}`, { undo: () => relog(i), failed: `Could not log ${i.medicine_name} again.`, after: () => void load(p) });
   await load(p);
 }
 

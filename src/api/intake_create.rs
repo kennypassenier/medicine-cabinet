@@ -101,10 +101,7 @@ mod tests {
     }
 
     fn stock(tx: &Transaction, id: i64) -> f64 {
-        tx.query_row("SELECT stock FROM medicines WHERE id = ?1", [id], |r| {
-            r.get(0)
-        })
-        .unwrap()
+        crate::domain::quantity::to_decimal(crate::store::stock::hundredths(tx, id).unwrap())
     }
 
     fn medicine(tx: &Transaction) -> i64 {

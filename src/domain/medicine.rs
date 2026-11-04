@@ -149,8 +149,9 @@ pub enum StockLevel {
     Out,
 }
 
-pub fn stock_level(stock: f64, low_at: Option<f64>) -> StockLevel {
-    if stock <= 0.0 {
+/// The level of a stock, both figures in whole hundredths (exact compare).
+pub fn stock_level(stock: i64, low_at: Option<i64>) -> StockLevel {
+    if stock <= 0 {
         StockLevel::Out
     } else if low_at.is_some_and(|t| stock <= t) {
         StockLevel::Low
@@ -187,10 +188,10 @@ mod tests {
 
     #[test]
     fn stock_levels() {
-        assert_eq!(stock_level(0.0, Some(5.0)), StockLevel::Out);
-        assert_eq!(stock_level(4.0, Some(5.0)), StockLevel::Low);
-        assert_eq!(stock_level(9.0, Some(5.0)), StockLevel::Ok);
-        assert_eq!(stock_level(9.0, None), StockLevel::Ok);
+        assert_eq!(stock_level(0, Some(500)), StockLevel::Out);
+        assert_eq!(stock_level(400, Some(500)), StockLevel::Low);
+        assert_eq!(stock_level(900, Some(500)), StockLevel::Ok);
+        assert_eq!(stock_level(900, None), StockLevel::Ok);
     }
 
     #[test]

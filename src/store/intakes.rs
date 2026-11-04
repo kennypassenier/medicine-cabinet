@@ -8,6 +8,7 @@ use super::sync_log::{self, Coll};
 use super::{db_err, not_found, stock};
 use crate::domain::date::parse_datetime;
 use crate::domain::limits;
+use crate::domain::quantity;
 use crate::schema::UID_SQL;
 
 pub use super::intake_queries::{
@@ -32,14 +33,27 @@ fn taken() -> String {
     "taken".into()
 }
 
-/// The columns every intake lookup needs.
-type Existing = (i64, String, f64, f64);
+/// The columns every edit or undo needs.
+struct Existing {
+    /// `None` once the medicine was purged: such an intake moves no stock.
+    medicine_id: Option<i64>,
+    status: String,
+    /// What the dose took out of the stock, in hundredths.
+    deducted: i64,
+}
 
 fn existing(tx: &Transaction, id: i64) -> Result<Existing, Error> {
     tx.query_row(
-        "SELECT medicine_id, status, dose, COALESCE(deducted, dose) FROM intakes WHERE id = ?1",
+        "SELECT medicine_id, status, COALESCE(deducted_hundredths, dose_hundredths)
+         FROM intakes WHERE id = ?1",
         [id],
-        |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)),
+        |r| {
+            Ok(Existing {
+                medicine_id: r.get(0)?,
+                status: r.get(1)?,
+                deducted: r.get(2)?,
+            })
+        },
     )
     .map_err(|e| match e {
         chassis::storage::rusqlite::Error::QueryReturnedNoRows => not_found("intake", id),
@@ -60,7 +74,10 @@ struct Checked {
     taken_at: String,
     planned_for: Option<String>,
     note: String,
-    dose: f64,
+    /// The dose in hundredths.
+    dose: i64,
+    /// The medicine's name, stored on the intake so the history outlives it.
+    medicine_name: String,
 }
 
 fn check(tx: &Transaction, i: &IntakeInput) -> Result<Checked, Error> {
@@ -76,21 +93,20 @@ fn check(tx: &Transaction, i: &IntakeInput) -> Result<Checked, Error> {
     let taken_at = parse_datetime(&i.taken_at)?;
     let planned_for = i.planned_for.as_deref().map(parse_datetime).transpose()?;
     let note = limits::text("the note", &i.note, limits::NOTE_MAX, false)?;
-    let dose = limits::amount("the dose", i.dose.unwrap_or(1.0), true)?;
+    let dose = quantity::checked("the dose", i.dose.unwrap_or(1.0), true)?;
     // A soft-deleted medicine is gone for logging purposes; a real database
     // failure must surface rather than read as "no such medicine".
-    let exists = match tx.query_row(
-        "SELECT 1 FROM medicines WHERE id = ?1 AND deleted_at IS NULL",
+    let medicine_name = match tx.query_row(
+        "SELECT name FROM medicines WHERE id = ?1 AND deleted_at IS NULL",
         [i.medicine_id],
-        |_| Ok(()),
+        |r| r.get::<_, String>(0),
     ) {
-        Ok(()) => true,
-        Err(chassis::storage::rusqlite::Error::QueryReturnedNoRows) => false,
+        Ok(name) => name,
+        Err(chassis::storage::rusqlite::Error::QueryReturnedNoRows) => {
+            return Err(not_found("medicine", i.medicine_id));
+        }
         Err(e) => return Err(db_err(e)),
     };
-    if !exists {
-        return Err(not_found("medicine", i.medicine_id));
-    }
     if let Some(slot) = &planned_for {
         refuse_if_answered(tx, i.medicine_id, slot)?;
     }
@@ -99,6 +115,7 @@ fn check(tx: &Transaction, i: &IntakeInput) -> Result<Checked, Error> {
         planned_for,
         note,
         dose,
+        medicine_name,
     })
 }
 
@@ -121,12 +138,12 @@ pub fn record_keyed(
     let deducted = if taken {
         stock::take_stock(tx, i.medicine_id, c.dose)?
     } else {
-        0.0
+        0
     };
     let sql = format!(
-        "INSERT INTO intakes (medicine_id, taken_at, planned_for, status, dose, note, deducted,
-                              uid, idempotency_key)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, COALESCE(?8, {UID_SQL}), ?9)"
+        "INSERT INTO intakes (medicine_id, medicine_name, taken_at, planned_for, status,
+                              dose_hundredths, note, deducted_hundredths, uid, idempotency_key)
+         VALUES (?1, ?10, ?2, ?3, ?4, ?5, ?6, ?7, COALESCE(?8, {UID_SQL}), ?9)"
     );
     tx.execute(
         &sql,
@@ -139,7 +156,8 @@ pub fn record_keyed(
             c.note,
             deducted,
             uid,
-            idempotency_key
+            idempotency_key,
+            c.medicine_name
         ],
     )
     .map_err(db_err)?;
@@ -190,38 +208,44 @@ pub struct IntakeEdit {
     pub note: String,
 }
 
-/// Correct the time, dose or note of an intake; a changed dose moves the stock.
+/// Correct the time, dose or note of an intake; a changed dose moves the
+/// stock. An intake whose medicine was purged moves none.
 pub fn edit(tx: &Transaction, id: i64, e: &IntakeEdit) -> Result<(), Error> {
-    let dose = limits::amount("the dose", e.dose, true)?;
+    let dose = quantity::checked("the dose", e.dose, true)?;
     let taken_at = parse_datetime(&e.taken_at)?;
     let note = limits::text("the note", &e.note, limits::NOTE_MAX, false)?;
-    let (medicine_id, status, _, old_deducted) = existing(tx, id)?;
-    let deducted = if status == "taken" {
-        stock::return_stock(tx, medicine_id, old_deducted)?;
-        stock::take_stock(tx, medicine_id, dose)?
-    } else {
-        0.0
+    let old = existing(tx, id)?;
+    let taken = old.status == "taken";
+    let deducted = match old.medicine_id {
+        Some(medicine_id) if taken => {
+            stock::return_stock(tx, medicine_id, old.deducted)?;
+            stock::take_stock(tx, medicine_id, dose)?
+        }
+        // Nothing to move: skipped, or the medicine is gone.
+        _ => old.deducted,
     };
     tx.execute(
-        "UPDATE intakes SET taken_at = ?2, dose = ?3, note = ?4, deducted = ?5 WHERE id = ?1",
+        "UPDATE intakes SET taken_at = ?2, dose_hundredths = ?3, note = ?4,
+                            deducted_hundredths = ?5 WHERE id = ?1",
         params![id, taken_at, dose, note, deducted],
     )
     .map_err(db_err)?;
     sync_log::touch(tx, Coll::Intakes, id)?;
-    if status == "taken" {
+    if let (true, Some(medicine_id)) = (taken, old.medicine_id) {
         sync_log::touch(tx, Coll::Medicines, medicine_id)?;
     }
     Ok(())
 }
 
-/// Undo an intake: what a taken dose took goes back into the stock.
+/// Undo an intake: what a taken dose took goes back into the stock (nothing
+/// goes back when its medicine was purged).
 pub fn undo(tx: &Transaction, id: i64) -> Result<(), Error> {
-    let (medicine_id, status, _, deducted) = existing(tx, id)?;
+    let old = existing(tx, id)?;
     sync_log::tombstone(tx, Coll::Intakes, id)?;
     tx.execute("DELETE FROM intakes WHERE id = ?1", [id])
         .map_err(db_err)?;
-    if status == "taken" {
-        stock::return_stock(tx, medicine_id, deducted)?;
+    if let (true, Some(medicine_id)) = (old.status == "taken", old.medicine_id) {
+        stock::return_stock(tx, medicine_id, old.deducted)?;
         sync_log::touch(tx, Coll::Medicines, medicine_id)?;
     }
     Ok(())
