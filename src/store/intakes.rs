@@ -167,7 +167,7 @@ pub fn record_keyed(
     let id = tx.last_insert_rowid();
     sync_log::created(tx, Coll::Intakes, id)?;
     if taken {
-        sync_log::touch(tx, Coll::Medicines, i.medicine_id)?;
+        sync_log::touch_stock(tx, i.medicine_id)?;
     }
     held_by_id(tx, id)
 }
@@ -235,7 +235,7 @@ pub fn edit(tx: &Transaction, id: i64, e: &IntakeEdit) -> Result<(), Error> {
     .map_err(db_err)?;
     sync_log::touch(tx, Coll::Intakes, id)?;
     if let (true, Some(medicine_id)) = (taken, old.medicine_id) {
-        sync_log::touch(tx, Coll::Medicines, medicine_id)?;
+        sync_log::touch_stock(tx, medicine_id)?;
     }
     Ok(())
 }
@@ -249,7 +249,7 @@ pub fn undo(tx: &Transaction, id: i64) -> Result<(), Error> {
         .map_err(db_err)?;
     if let (true, Some(medicine_id)) = (old.status == "taken", old.medicine_id) {
         stock::return_stock(tx, medicine_id, old.deducted)?;
-        sync_log::touch(tx, Coll::Medicines, medicine_id)?;
+        sync_log::touch_stock(tx, medicine_id)?;
     }
     Ok(())
 }

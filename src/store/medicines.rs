@@ -69,7 +69,15 @@ pub fn insert_keyed(tx: &Transaction, m: &MedicineInput, keys: &Keys) -> Result<
     Ok(id)
 }
 
-pub fn update(tx: &Transaction, id: i64, m: &MedicineInput) -> Result<(), Error> {
+/// Replace a medicine's description. `write_stock` false keeps the stored
+/// stock: the caller's figure is out of date (doses were logged since it
+/// read the medicine) and must not undo them.
+pub fn update(
+    tx: &Transaction,
+    id: i64,
+    m: &MedicineInput,
+    write_stock: bool,
+) -> Result<(), Error> {
     ensure_form(tx, m.form_id)?;
     let before = tx
         .query_row(
@@ -82,7 +90,7 @@ pub fn update(tx: &Transaction, id: i64, m: &MedicineInput) -> Result<(), Error>
         .execute(
             "UPDATE medicines SET name=?2, purpose=?3, form_id=?4, strength=?5, notes=?6,
                 active=?7, as_needed=?8, min_gap_minutes=?9, max_per_day=?10,
-                stock_hundredths=?11, stock_unit=?12, low_stock_at_hundredths=?13, expires_on=?14, opened_on=?15,
+                stock_hundredths=CASE WHEN ?18 THEN ?11 ELSE stock_hundredths END, stock_unit=?12, low_stock_at_hundredths=?13, expires_on=?14, opened_on=?15,
                 shelf_life_days=?16, course_ends_on=?17 WHERE id=?1 AND deleted_at IS NULL",
             params![
                 id,
@@ -101,7 +109,8 @@ pub fn update(tx: &Transaction, id: i64, m: &MedicineInput) -> Result<(), Error>
                 m.expires_on,
                 m.opened_on,
                 m.shelf_life_days,
-                m.course_ends_on
+                m.course_ends_on,
+                write_stock
             ],
         )
         .map_err(db_err)?;

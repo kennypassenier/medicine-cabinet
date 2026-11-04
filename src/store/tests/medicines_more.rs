@@ -64,11 +64,11 @@ fn update_replaces_the_fields_and_the_symptom_links() {
     let id = medicines::insert(&tx, &medicine("A", 1.0)).unwrap();
     let mut changed = medicine("A2", 8.0);
     changed.symptoms = vec!["fever".into(), "cough".into()];
-    medicines::update(&tx, id, &changed).unwrap();
+    medicines::update(&tx, id, &changed, true).unwrap();
     let m = medicines::get(&tx, id, today()).unwrap();
     assert_eq!((m.name.as_str(), m.stock), ("A2", 8.0));
     assert_eq!(m.symptoms, ["cough", "fever"]);
-    assert!(medicines::update(&tx, 999, &changed).is_err());
+    assert!(medicines::update(&tx, 999, &changed, true).is_err());
 }
 
 #[test]
@@ -78,7 +78,7 @@ fn unlinking_a_symptom_from_the_last_medicine_keeps_the_symptom() {
     let id = medicines::insert(&tx, &medicine("A", 1.0)).unwrap();
     let mut none = medicine("A", 1.0);
     none.symptoms.clear();
-    medicines::update(&tx, id, &none).unwrap();
+    medicines::update(&tx, id, &none, true).unwrap();
     let all = symptoms::list(&tx).unwrap();
     assert_eq!(all.len(), 1);
     assert_eq!(all[0].medicines, 0);
@@ -131,4 +131,36 @@ fn a_switched_off_medicine_still_lists_with_its_symptoms() {
         .map(|m| (m.id, m.active))
         .collect();
     assert_eq!(with_headache, [(on, true), (off, false)]);
+}
+
+fn revs(tx: &chassis::storage::rusqlite::Transaction, id: i64) -> (u64, u64) {
+    let rev = crate::store::sync_log::current_rev(tx, Coll::Medicines, id).unwrap();
+    let desc = crate::store::sync_log::desc_rev(tx, id).unwrap();
+    (rev.unwrap(), desc.unwrap())
+}
+
+#[test]
+fn stock_changes_raise_rev_but_not_desc_rev() {
+    let mut conn = db();
+    let tx = conn.transaction().unwrap();
+    let id = medicines::insert(&tx, &medicine("A", 5.0)).unwrap();
+    assert_eq!(revs(&tx, id), (1, 1));
+    crate::store::stock::adjust_stock(&tx, id, 2.0).unwrap();
+    assert_eq!(revs(&tx, id), (2, 1));
+    medicines::set_active(&tx, id, false).unwrap();
+    assert_eq!(revs(&tx, id), (3, 3));
+    crate::store::stock::adjust_stock(&tx, id, -1.0).unwrap();
+    assert_eq!(revs(&tx, id), (4, 3));
+}
+
+#[test]
+fn update_can_keep_the_stored_stock() {
+    let mut conn = db();
+    let tx = conn.transaction().unwrap();
+    let id = medicines::insert(&tx, &medicine("A", 5.0)).unwrap();
+    medicines::update(&tx, id, &medicine("B", 99.0), false).unwrap();
+    let m = medicines::get(&tx, id, today()).unwrap();
+    assert_eq!((m.name.as_str(), m.stock), ("B", 5.0));
+    medicines::update(&tx, id, &medicine("B", 99.0), true).unwrap();
+    assert_eq!(medicines::get(&tx, id, today()).unwrap().stock, 99.0);
 }

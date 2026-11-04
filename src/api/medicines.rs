@@ -10,9 +10,10 @@ use serde::Deserialize;
 use super::guard::guarded;
 use super::{ApiResult, Clock, create};
 use crate::domain::medicine::MedicineInput;
+use crate::domain::revision::stock_is_current;
 use crate::domain::schedule::SlotInput;
 use crate::store::medicines::{self, Medicine};
-use crate::store::sync_log::Coll;
+use crate::store::sync_log::{self, Coll};
 use crate::store::{refs, slots, stock};
 use chassis::{ApiJson, ApiPath, ApiQuery, IdempotencyKey};
 
@@ -96,7 +97,10 @@ pub async fn replace(
     let form = body.form_id;
     let done = guarded(&db, if_match, Coll::Medicines, reference, move |tx, id| {
         input.form_id = refs::field_opt(tx, Coll::Forms, "form_id", form.as_deref())?;
-        medicines::update(tx, id, &input)?;
+        // An edit made before a later dose keeps the stock the dose left.
+        let rev = sync_log::current_rev(tx, Coll::Medicines, id)?.unwrap_or_default();
+        let write_stock = stock_is_current(if_match.precondition(), rev);
+        medicines::update(tx, id, &input, write_stock)?;
         slots::replace(tx, id, &slot_list)
     })
     .await?;

@@ -5,7 +5,7 @@
 use chassis::Error;
 use chassis::storage::rusqlite::{Transaction, params};
 
-use super::sync_log::{self, Coll};
+use super::sync_log;
 use super::{db_err, not_found};
 use crate::domain::quantity;
 
@@ -22,7 +22,7 @@ pub fn adjust_stock(tx: &Transaction, id: i64, delta: f64) -> Result<(), Error> 
     if changed == 0 {
         return Err(not_found("medicine", id));
     }
-    sync_log::touch(tx, Coll::Medicines, id).map(|_| ())
+    sync_log::touch_stock(tx, id).map(|_| ())
 }
 
 /// Take up to `want` hundredths out of the stock for a logged dose; returns

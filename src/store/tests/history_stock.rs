@@ -66,7 +66,7 @@ fn renaming_a_medicine_updates_the_stored_name() {
     let tx = conn.transaction().unwrap();
     let id = medicines::insert(&tx, &medicine("Old", 5.0)).unwrap();
     intakes::record(&tx, &taken(id, "2026-11-01T08:00", 1.0)).unwrap();
-    medicines::update(&tx, id, &medicine("New", 4.0)).unwrap();
+    medicines::update(&tx, id, &medicine("New", 4.0), true).unwrap();
     medicines::delete(&tx, id).unwrap();
     purge_window_passed(&tx, id);
     medicines::purge_deleted(&tx).unwrap();

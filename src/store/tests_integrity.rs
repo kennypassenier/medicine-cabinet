@@ -64,7 +64,7 @@ fn nothing_can_touch_a_soft_deleted_medicine() {
     assert!(intakes::record(&tx, &taken(id, "2026-11-01T08:00", 1.0)).is_err());
     assert!(medicines::set_active(&tx, id, false).is_err());
     assert!(stock::adjust_stock(&tx, id, 3.0).is_err());
-    assert!(medicines::update(&tx, id, &medicine("Renamed", 1.0)).is_err());
+    assert!(medicines::update(&tx, id, &medicine("Renamed", 1.0), true).is_err());
     medicines::restore(&tx, id).unwrap();
     let back = medicines::get(&tx, id, today()).unwrap();
     assert_eq!(

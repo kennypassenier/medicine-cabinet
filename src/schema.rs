@@ -249,6 +249,16 @@ CREATE UNIQUE INDEX forms_by_idempotency ON medicine_forms (idempotency_key)
 "
 );
 
+/// A medicine's `rev` rises on every change to its body, stock included, so
+/// devices re-pull. `desc_rev` is the `rev` at the last change of anything
+/// BUT the stock quantity (a logged dose, an intake edit or undo, a stock
+/// top-up). An `If-Match` at or above it still describes the same medicine,
+/// so an offline edit does not collide with a dose taken in between.
+const V11: &str = "
+ALTER TABLE medicines ADD COLUMN desc_rev INTEGER NOT NULL DEFAULT 1;
+UPDATE medicines SET desc_rev = rev;
+";
+
 pub fn migrations() -> Vec<Migration> {
     vec![
         Migration::sql(V1),
@@ -263,10 +273,11 @@ pub fn migrations() -> Vec<Migration> {
         Migration::sql(V10),
         // Not SQL: the change log was keyed by integer ids until now.
         Migration::code(crate::store::sync_rekey::rekey_to_uids),
+        Migration::sql(V11),
     ]
 }
 
 /// Every migration's SQL, in order, for tests that run the stores against an
 /// in-memory database.
 #[cfg(test)]
-pub const ALL_SQL: [&str; 10] = [V1, V2, V3, V4, V5, V6, V7, V8, V9, V10];
+pub const ALL_SQL: [&str; 11] = [V1, V2, V3, V4, V5, V6, V7, V8, V9, V10, V11];

@@ -5,6 +5,7 @@ use chassis::storage::AppDb;
 use chassis::storage::rusqlite::Transaction;
 use chassis::{Conflict, Error, IfMatch};
 
+use crate::domain::revision::check_descriptive;
 use crate::store::refs;
 use crate::store::sync_log::{self, Coll};
 
@@ -28,10 +29,18 @@ fn stale(
     coll: Coll,
     id: i64,
 ) -> Result<Option<Conflict>, Error> {
-    Ok(match sync_log::current_rev(tx, coll, id)? {
-        Some(current) => if_match.check(current).err(),
-        None => None,
-    })
+    let Some(current) = sync_log::current_rev(tx, coll, id)? else {
+        return Ok(None);
+    };
+    if coll != Coll::Medicines {
+        return Ok(if_match.check(current).err());
+    }
+    // A medicine's stock moves without its description changing: judge the
+    // client's copy by the description, see `domain::revision`.
+    let desc = sync_log::desc_rev(tx, id)?.unwrap_or(current);
+    Ok(check_descriptive(if_match.precondition(), current, desc)
+        .err()
+        .map(Conflict::from))
 }
 
 /// The revision a write left behind: the row's own, or the last logged one

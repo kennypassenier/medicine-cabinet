@@ -97,13 +97,20 @@ pub fn created(tx: &Transaction, coll: Coll, id: i64) -> Result<(), Error> {
 /// A changed row: bump its revision and record it. Returns the new revision,
 /// or `None` when the row does not exist (nothing is recorded then).
 pub fn touch(tx: &Transaction, coll: Coll, id: i64) -> Result<Option<u64>, Error> {
-    bump(tx, coll, id, false)
+    bump(tx, coll, id, Bump::Body)
+}
+
+/// A medicine whose only change is its stock quantity (a dose logged, edited
+/// or undone, a stock top-up): `rev` rises so devices re-pull, `desc_rev`
+/// stays, so an edit made against the same description is not stale.
+pub fn touch_stock(tx: &Transaction, id: i64) -> Result<Option<u64>, Error> {
+    bump(tx, Coll::Medicines, id, Bump::StockOnly)
 }
 
 /// A row about to be removed for good: call it BEFORE the `DELETE`, so the
 /// key and the revision can still be read.
 pub fn tombstone(tx: &Transaction, coll: Coll, id: i64) -> Result<(), Error> {
-    bump(tx, coll, id, true).map(|_| ())
+    bump(tx, coll, id, Bump::Gone).map(|_| ())
 }
 
 /// [`touch`] for several rows (a missing one is skipped).
@@ -176,12 +183,41 @@ pub fn ids(tx: &Transaction, sql: &str, arg: i64) -> Result<Vec<i64>, Error> {
     rows.collect::<Result<_, _>>().map_err(db_err)
 }
 
-fn bump(tx: &Transaction, coll: Coll, id: i64, force_gone: bool) -> Result<Option<u64>, Error> {
-    let sql = format!("UPDATE {} SET rev = rev + 1 WHERE id = ?1", coll.table());
+/// What a revision bump stands for.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Bump {
+    /// The row's body changed.
+    Body,
+    /// A medicine's stock quantity alone changed (leaves `desc_rev`).
+    StockOnly,
+    /// The row is about to be removed for good.
+    Gone,
+}
+
+/// The medicine's `desc_rev`: the `rev` at its last non-stock change.
+pub fn desc_rev(tx: &Transaction, id: i64) -> Result<Option<u64>, Error> {
+    let rev: Option<i64> = tx
+        .query_row("SELECT desc_rev FROM medicines WHERE id = ?1", [id], |r| {
+            r.get(0)
+        })
+        .optional()
+        .map_err(db_err)?;
+    Ok(rev.map(|r| r as u64))
+}
+
+fn bump(tx: &Transaction, coll: Coll, id: i64, kind: Bump) -> Result<Option<u64>, Error> {
+    // In SQLite every right-hand side reads the row as it was, so
+    // `desc_rev = rev + 1` is the new `rev`.
+    let set = if coll == Coll::Medicines && kind != Bump::StockOnly {
+        "rev = rev + 1, desc_rev = rev + 1"
+    } else {
+        "rev = rev + 1"
+    };
+    let sql = format!("UPDATE {} SET {set} WHERE id = ?1", coll.table());
     if tx.execute(&sql, [id]).map_err(db_err)? == 0 {
         return Ok(None);
     }
-    record(tx, coll, id, force_gone)
+    record(tx, coll, id, kind == Bump::Gone)
 }
 
 /// Write the row's current state into the change log.
