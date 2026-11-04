@@ -21,7 +21,8 @@ fn ensure_form(tx: &Transaction, form_id: Option<i64>) -> Result<(), Error> {
     .map_err(|_| not_found("form", id))
 }
 
-/// Insert under a server-made `uid`.
+/// Insert under a server-made `uid` (the demo seed and the tests; the API uses `insert_keyed`).
+#[cfg(any(test, debug_assertions))]
 pub fn insert(tx: &Transaction, m: &MedicineInput) -> Result<i64, Error> {
     insert_keyed(tx, m, &Keys::default())
 }
