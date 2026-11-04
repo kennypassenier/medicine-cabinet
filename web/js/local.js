@@ -32,6 +32,8 @@ function describe({ method, path, body }) {
  * The overlay drops a refused write from the views by itself (the kit leaves
  * failed entries out of it), but a screen already drawn keeps the row it drew
  * from the queued create. When the failed count grows, every screen redraws.
+ * Kept on purpose: with chassis-rs 4.8.0's `chassis-data-refused` alone, the extra row of an offline duplicate create
+ * stayed on the settings page for 10+ s after reconnecting (measured, Firefox); with this redraw it goes at once.
  */
 function redrawOnRefusal() {
   let failed = 0;
