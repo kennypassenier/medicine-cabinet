@@ -14,7 +14,8 @@ shortened that is said.
 4. [Intakes and the dosing guard](#intakes-and-the-dosing-guard)
 5. [Today and search](#today-and-search)
 6. [Symptoms, categories, forms](#symptoms-categories-forms)
-7. [Behaviour that may surprise you](#behaviour-that-may-surprise-you)
+7. [Merged page endpoints](#merged-page-endpoints)
+8. [Behaviour that may surprise you](#behaviour-that-may-surprise-you)
 
 ## Calling it
 
@@ -458,6 +459,33 @@ Injection (doses).
   `stock_unit` of medicines already saved.
 * `DELETE /api/mc/forms/{id}`: medicines keep existing and lose their form.
   `{"deleted":"<uid>","rev":7,"was":{"medicine_ids":["<uid>"],"name":"Tablet","unit":"tablets"}}`.
+
+## Merged page endpoints
+
+Kenny's rule (2026-11-04): every resource keeps its own endpoint (all of the
+above remain), and a page that uses several resources gets ONE merged endpoint
+so it loads with a single call. The browser app uses them when the browser
+blocks its local database (a private window); it is the fallback read path.
+
+### `GET /api/mc/pages/{name}?now=...`
+
+`now` is the local time, as for the individual endpoints. Every part is the
+JSON its individual endpoint answers for the same query (byte-identical), read
+in one read transaction, so the parts agree with each other. An unknown name
+answers the kit's `404` JSON.
+
+| `name` | answer | the parts are |
+|---|---|---|
+| `today` | `{today, medicines}` | `GET /today`, `GET /medicines` |
+| `cabinet` | `{medicines, forms, categories}` | `GET /medicines`, `GET /forms`, `GET /categories` |
+| `symptoms` | `{symptoms, categories, medicines}` | `GET /symptoms`, `GET /categories`, `GET /medicines` |
+| `history` | `{intakes, medicines}` | `GET /intakes` (its default `limit` of 200, every day), `GET /medicines` |
+| `settings` | `{forms, categories, symptoms}` | `GET /forms`, `GET /categories`, `GET /symptoms` |
+
+```
+$ curl -H "$AUTH" "$B/api/mc/pages/nope?now=2026-11-04T09:00"
+{"error":"there is no page endpoint called 'nope'","remedy":"use today, cabinet, symptoms, history or settings"}
+```
 
 ## Behaviour that may surprise you
 

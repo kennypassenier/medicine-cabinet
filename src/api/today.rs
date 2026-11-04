@@ -2,11 +2,14 @@
 
 use axum::Json;
 use axum::extract::State;
+use chassis::Error;
 use chassis::storage::AppDb;
+use chassis::storage::rusqlite::Connection;
 use serde::Serialize;
 
 use super::{ApiResult, Clock};
 use crate::attention::{Attention, attention_for};
+use crate::domain::date::Date;
 use crate::domain::plan::{PlannedDose, plan};
 use crate::store::intakes;
 use crate::store::medicines::{self, Medicine};
@@ -25,24 +28,25 @@ pub async fn overview(
     ApiQuery(c): ApiQuery<Clock>,
 ) -> ApiResult<Overview> {
     let (today, minute) = (c.date()?, c.minute()?);
+    db.read(move |conn| build(conn, today, minute))
+        .await
+        .map(Json)
+}
+
+/// Today's overview from an open connection (shared with the merged `today` page).
+pub(super) fn build(conn: &Connection, today: Date, minute: u32) -> Result<Overview, Error> {
     let day = today.iso();
-    let (all, logged) = db
-        .read(move |conn| {
-            Ok((
-                medicines::list(conn, today)?,
-                intakes::list(conn, &day, 500)?,
-            ))
-        })
-        .await?;
+    let all = medicines::list(conn, today)?;
+    let logged = intakes::list(conn, &day, 500)?;
     let slots = crate::dayplan::day_slots(&all, &logged, today);
     let attention = attention_for(&all, today);
     let as_needed = all
         .into_iter()
         .filter(|m| m.active && m.as_needed && !m.course_over)
         .collect();
-    Ok(Json(Overview {
+    Ok(Overview {
         doses: plan(slots, minute),
         attention,
         as_needed,
-    }))
+    })
 }

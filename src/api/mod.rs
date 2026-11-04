@@ -6,6 +6,7 @@ mod guard;
 mod intake_create;
 mod intakes;
 mod medicines;
+mod pages;
 mod search;
 mod symptoms;
 mod today;
@@ -48,6 +49,7 @@ pub fn router(db: AppDb) -> Router {
             axum::routing::put(intakes::edit).delete(intakes::undo),
         )
         .route("/api/mc/today", get(today::overview))
+        .route("/api/mc/pages/{name}", get(pages::show))
         .route("/api/mc/search", get(search::by_symptom))
         .route(
             "/api/mc/symptoms",

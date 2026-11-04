@@ -16,6 +16,9 @@ use chassis::{ApiJson, ApiPath, ApiQuery, Error, IfMatch, Revisioned};
 
 use super::guard::guarded;
 
+/// How many intakes `GET /intakes` returns when `limit` is absent.
+pub(super) const DEFAULT_LIMIT: i64 = 200;
+
 #[derive(Debug, Deserialize)]
 pub struct ListQuery {
     /// A day (`YYYY-MM-DD`); every day when absent.
@@ -32,7 +35,7 @@ pub async fn list(
         Some(day) => Date::parse(day)?.iso(),
         None => String::new(),
     };
-    let limit = q.limit.unwrap_or(200).clamp(1, 1000);
+    let limit = q.limit.unwrap_or(DEFAULT_LIMIT).clamp(1, 1000);
     db.read(move |conn| intakes::list(conn, &prefix, limit))
         .await
         .map(Json)

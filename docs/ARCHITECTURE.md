@@ -45,7 +45,7 @@ described in the kit's docs, not here.
 | `store/mod.rs` | `db_err` (sqlite failure to a 502 `Error` that keeps the cause) and `not_found` | |
 | `attention.rs` | What needs attention (stock, expiry, course end) from a medicine list | `domain`, `store::medicines::Medicine` |
 | `dayplan.rs` | Today's slots paired with the intakes that answered them | `domain::plan`, `store` types |
-| `api/` | One file per area: `medicines`, `intakes`, `today`, `search`, `symptoms` (also categories), `forms`; `mod.rs` has the router and the `Clock` extractor | `store`, `domain`, `attention`, `dayplan` |
+| `api/` | One file per area: `pages` (the merged page endpoints, built from the same store queries), `medicines`, `intakes`, `today`, `search`, `symptoms` (also categories), `forms`; `mod.rs` has the router and the `Clock` extractor | `store`, `domain`, `attention`, `dayplan` |
 | `reminders/` | The 30-second loop (`mod.rs`) and the pure decision of what is due (`due.rs`) | `store`, `dayplan`, `attention`, `domain::plan`, kit `Notifier` |
 | `agenda/` | The 15-minute calendar sync: `events.rs` (pure: which events are wanted), `client.rs` (HTTP to the hub), `mod.rs` (the plan and the loop) | `store`, `reqwest` |
 | `seed.rs` | Demo data; compiled only with `debug_assertions` | `store` |
@@ -228,6 +228,7 @@ step, no `package.json` and no frontend test suite in this repository.
 | `js/main.js` | Router and page lifecycle: `navigate`, history API, `mount(root, ctx)` returning a cleanup, "Page not found" plate, theme picker, link interception |
 | `js/routes.js` | One list of places (`AREAS`, `MORE`) that drives the bar, the tab bar and `route()`; `/find` redirects to `/symptoms` |
 | `js/shell.js` | Draws the bar, the tab bar and the More menu (Settings plus the kit's Status, Clients, Storage from `/api/kit/pages`) |
+| `js/store/online*.js`, `page-cache.js`, `availability.js` | The fallback when the browser blocks the local database: the same calls over plain fetch, a page load being one `/api/mc/pages/<name>` call (`page-cache.js` hands the parts out); `availability.js` decides, `local.js` switches and shows the notice |
 | `js/api.js` | The only module that calls `/api/mc`: adds `now`, turns failures into `ApiError(message, remedy, status)`; plain-text rejections are shown as they are |
 | `js/clock.js` | Local date/time in the API's shapes; `dd/mm/yyyy` display, `Today/Yesterday`, durations, weekday labels |
 | `js/dom.js`, `ui.js`, `controls.js`, `dialogs.js`, `format.js`, `units.js` | Helpers: element builder `h` and `redraw` (keeps focus and caret), page header and data card with loading/empty/error/ready states and toasts, stepper/switch/chips builders, confirmation dialog, quantity and badge wording, unit suggestions |
