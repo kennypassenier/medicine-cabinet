@@ -187,8 +187,8 @@ All medicines that are not soft-deleted, switched-on first, then by name
 (case-insensitive).
 
 ```
-$ curl -H "$AUTH" "$B/api/mc/medicines/1?now=2026-11-02T09:30"
-{"id":1,"name":"Ibuprofen","purpose":"Pain and fever","form":"Tablet","form_id":1,"strength":"400 mg","notes":"","active":true,"as_needed":true,"min_gap_minutes":360,"max_per_day":3,"stock":12.0,"stock_unit":"tablets","low_stock_at":4.0,"expires_on":"2026-11-22","opened_on":null,"shelf_life_days":null,"course_ends_on":null,"symptoms":["fever","headache","muscle pain","toothache"],"slots":[],"effective_expiry":"2026-11-22","freshness":"expiring_soon","stock_level":"ok","course_over":false}
+$ curl -H "$AUTH" "$B/api/mc/medicines/<medicine-uid>?now=2026-11-02T09:30"
+{"id":"<medicine-uid>","name":"Ibuprofen","purpose":"Pain and fever","form":"Tablet","form_id":"<form-uid>","strength":"400 mg","notes":"","active":true,"as_needed":true,"min_gap_minutes":360,"max_per_day":3,"stock":12.0,"stock_unit":"tablets","low_stock_at":4.0,"expires_on":"2026-11-22","opened_on":null,"shelf_life_days":null,"course_ends_on":null,"symptoms":["fever","headache","muscle pain","toothache"],"slots":[],"effective_expiry":"2026-11-22","freshness":"expiring_soon","stock_level":"ok","course_over":false}
 ```
 
 The list returns an array of these.
@@ -224,8 +224,8 @@ goes back to its default, including `stock_unit`, `form_id`, `symptoms` and
 whole medicine.
 
 ```
-$ ... -X PUT -d '{"name":"Docs Test 2","stock":8,"slots":[{"time":"09:00"}]}' "$B/api/mc/medicines/9?now=..."
-{"id":9,"name":"Docs Test 2","purpose":"","form":"","form_id":null,...,"stock":8.0,"stock_unit":"","low_stock_at":null,"expires_on":null,...,"symptoms":[],"slots":[{"time":"09:00","days":127,"dose":1.0}],...}
+$ ... -X PUT -d '{"name":"Docs Test 2","stock":8,"slots":[{"time":"09:00"}]}' "$B/api/mc/medicines/<medicine-uid>?now=..."
+{"id":"<medicine-uid>","name":"Docs Test 2","purpose":"","form":"","form_id":null,...,"stock":8.0,"stock_unit":"","low_stock_at":null,"expires_on":null,...,"symptoms":[],"slots":[{"time":"09:00","days":127,"dose":1.0}],...}
 ```
 
 (`...` marks fields that were unchanged defaults.) `404` for an unknown id.
