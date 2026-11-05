@@ -111,7 +111,7 @@ The theme picker is in the top bar. The app is English only.
 (`web/js/local.js`, `web/js/store/kit.js`): the screens render without a network,
 a change made offline is queued and sent later, and an edit the server refuses
 lands in the kit's failed-edits list (the server always wins). The sync feed is
-`GET /api/sync` (see [docs/API.md](docs/API.md) and
+`GET /api/sync/<collection>` (see [docs/API.md](docs/API.md) and
 [docs/OFFLINE_PLAN.md](docs/OFFLINE_PLAN.md)).
 
 ## Run it locally
